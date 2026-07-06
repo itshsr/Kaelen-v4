@@ -1,0 +1,15 @@
+{
+  "name": "KAELEN",
+  "short_name": "KAELEN",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#060913",
+  "theme_color": "#060913",
+  "icons": [
+    {
+      "src": "/wolf.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

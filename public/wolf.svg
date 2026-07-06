@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="base" x1="10" y1="5" x2="90" y2="95" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#22337a"/>
+      <stop offset="40%" stop-color="#4f5fd9"/>
+      <stop offset="72%" stop-color="#7a6bff"/>
+      <stop offset="100%" stop-color="#3a4bc0"/>
+    </linearGradient>
+    <linearGradient id="ivory" x1="20" y1="20" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f4ecd9"/>
+      <stop offset="100%" stop-color="#e7dcc2"/>
+    </linearGradient>
+    <linearGradient id="red" x1="20" y1="20" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8f2a3a"/>
+      <stop offset="100%" stop-color="#5f1c28"/>
+    </linearGradient>
+    <linearGradient id="silver" x1="20" y1="20" x2="80" y2="90" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#c9d2e6"/>
+      <stop offset="100%" stop-color="#9aa6c2"/>
+    </linearGradient>
+  </defs>
+
+  <!-- outer head silhouette -->
+  <path d="M50 4 L66 10 L78 24 L92 46 L88 66 L74 78 L64 96 L50 84 L36 96 L26 78 L12 66 L8 46 L22 24 L34 10 Z"
+        fill="url(#base)"/>
+
+  <!-- ear inner ivory -->
+  <path d="M22 24 L34 10 L38 30 L27 34 Z" fill="url(#ivory)"/>
+  <path d="M78 24 L66 10 L62 30 L73 34 Z" fill="url(#ivory)"/>
+
+  <!-- brow / mask band, silver -->
+  <path d="M27 34 L38 30 L50 27 L62 30 L73 34 L66 46 L50 42 L34 46 Z" fill="url(#silver)"/>
+
+  <!-- eyes, deep red -->
+  <path d="M36 41 L46 38 L43 48 L34 46 Z" fill="url(#red)"/>
+  <path d="M64 41 L54 38 L57 48 L66 46 Z" fill="url(#red)"/>
+  <circle cx="41" cy="43" r="1.6" fill="#f4ecd9"/>
+  <circle cx="59" cy="43" r="1.6" fill="#f4ecd9"/>
+
+  <!-- cheek facets ivory -->
+  <path d="M12 66 L26 78 L34 76 L34 58 L26 60 L22 24 L8 46 Z" fill="url(#ivory)" opacity="0.9"/>
+  <path d="M92 46 L88 66 L74 78 L66 76 L66 58 L74 60 L78 24 Z" fill="url(#ivory)" opacity="0.9"/>
+
+  <!-- muzzle, red band -->
+  <path d="M34 58 L50 52 L66 58 L64 78 L50 92 L36 78 Z" fill="url(#red)"/>
+
+  <!-- muzzle centerline + nose, silver/ivory -->
+  <path d="M50 52 L50 78" stroke="url(#silver)" stroke-width="2" stroke-linecap="round"/>
+  <path d="M44 84 L50 92 L56 84" stroke="url(#ivory)" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="50" cy="80" rx="4.5" ry="3.2" fill="url(#ivory)"/>
+
+  <!-- outer structure lines -->
+  <path d="M50 4 L66 10 L78 24 L92 46 L88 66 L74 78 L64 96 L50 84 L36 96 L26 78 L12 66 L8 46 L22 24 L34 10 Z"
+        stroke="url(#base)" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>
