@@ -255,7 +255,7 @@ export default function GalaxyBackground({ theme = 'dark' }) {
       ctx.globalCompositeOperation = "source-over";
 
       for (const c of constellations) {
-        ctx.strokeStyle = isLight ? `rgba(90, 100, 140, ${c.alpha * 1.3})` : `rgba(180, 200, 235, ${c.alpha})`;
+        ctx.strokeStyle = isLight ? `rgba(70, 80, 125, ${c.alpha * 2.2})` : `rgba(180, 200, 235, ${c.alpha})`;
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         for (const [a, b] of c.edges) {
@@ -271,7 +271,7 @@ export default function GalaxyBackground({ theme = 'dark' }) {
       ctx.globalCompositeOperation = isLight ? "source-over" : "lighter";
       for (const s of stars) {
         const tw = 0.55 + 0.45 * Math.sin(t * s.twSpeed + s.twPhase);
-        const a = (isLight ? s.baseA * 0.55 : s.baseA) * tw;
+        const a = (isLight ? s.baseA * 0.85 : s.baseA) * tw;
         const sx = s.x + px * s.depth * 0.6;
         const sy = s.y + py * s.depth * 0.6;
 
