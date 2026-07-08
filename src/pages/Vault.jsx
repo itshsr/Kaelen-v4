@@ -139,7 +139,9 @@ function Budget({ uid, reload }) {
       </div>
       <div className={`progress ${over ? 'over' : ''}`}><div style={{ width: `${pct}%` }} /></div>
       <div className="hud" style={{ marginTop: '0.5rem' }}>
-        {cap > 0 ? (over ? `OVER CAP BY ${inr(spent - cap)}` : `${Math.round(pct)}% OF CAP USED`) : 'SET A MONTHLY CAP'}
+        {cap > 0
+          ? (over ? `OVER CAP BY ${inr(spent - cap)}` : `${inr(Math.max(cap - spent, 0))} LEFT · ${Math.round(pct)}% OF CAP USED`)
+          : 'SET A MONTHLY CAP'}
       </div>
     </div>
   )
@@ -191,7 +193,7 @@ function Subs({ uid, cards }) {
   const [subs, setSubs] = useState([])
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
-  const [cardId, setCardId] = useState('')
+  const [method, setMethod] = useState('')
 
   const load = async () => {
     const { data } = await supabase.from('subscriptions').select('*').order('created_at', { ascending: false })
@@ -201,8 +203,11 @@ function Subs({ uid, cards }) {
 
   const add = async () => {
     if (!name.trim()) return
+    const isCard = method && method !== 'UPI' && method !== 'Cash'
     await supabase.from('subscriptions').insert({
-      user_id: uid, name: name.trim(), amount: parseFloat(amount) || 0, card_id: cardId || null,
+      user_id: uid, name: name.trim(), amount: parseFloat(amount) || 0,
+      card_id: isCard ? method : null,
+      payment_method: isCard ? null : (method || null),
     })
     setName(''); setAmount(''); load()
   }
@@ -211,14 +216,18 @@ function Subs({ uid, cards }) {
     await supabase.from('subscriptions').update({ status: s.status === 'active' ? 'paused' : 'active' }).eq('id', s.id); load()
   }
   const del = async id => { await supabase.from('subscriptions').delete().eq('id', id); load() }
+  const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
+  const payLabel = s => s.card_id ? cardLabel(s.card_id) : (s.payment_method || 'No card')
 
   return (
     <div className="panel">
       <div className="row wrap" style={{ marginBottom: '0.9rem' }}>
         <input className="input" placeholder="Subscription name" style={{ flex: 2, minWidth: 140 }} value={name} onChange={e => setName(e.target.value)} />
         <input className="input" type="number" placeholder="₹/month" style={{ flex: 1, minWidth: 100 }} value={amount} onChange={e => setAmount(e.target.value)} />
-        <select className="input" style={{ flex: 1, minWidth: 110 }} value={cardId} onChange={e => setCardId(e.target.value)}>
+        <select className="input" style={{ flex: 1, minWidth: 110 }} value={method} onChange={e => setMethod(e.target.value)}>
           <option value="">No card</option>
+          <option value="Cash">Cash</option>
+          <option value="UPI">UPI</option>
           {cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
         <button className="btn-sm" onClick={add}>Add</button>
@@ -232,7 +241,7 @@ function Subs({ uid, cards }) {
                 {s.name} · {inr(s.amount)}
               </div>
               <div className="item-sub">
-                {s.status === 'paused' ? 'Paused' : s.paid_this_month ? 'Paid this month' : 'Unpaid'}
+                {s.status === 'paused' ? 'Paused' : s.paid_this_month ? 'Paid this month' : 'Unpaid'} · {payLabel(s)}
               </div>
             </div>
             {s.status === 'active' && (

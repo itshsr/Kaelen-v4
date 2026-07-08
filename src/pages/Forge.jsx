@@ -163,7 +163,41 @@ function Focus({ uid }) {
   const [left, setLeft] = useState(null) // seconds
   const [phase, setPhase] = useState('idle') // idle | focus | break
   const [streak, setStreak] = useState(0)
+  const [toast, setToast] = useState('')
   const timer = useRef(null)
+
+  useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission()
+    }
+  }, [])
+
+  const beep = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext
+      const ctx = new Ctx()
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = 880
+      gain.gain.setValueAtTime(0.001, ctx.currentTime)
+      gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.start(); osc.stop(ctx.currentTime + 0.55)
+      setTimeout(() => ctx.close(), 700)
+    } catch { /* audio unsupported, ignore */ }
+  }
+
+  const notifyDone = (title, body) => {
+    beep()
+    if (navigator.vibrate) navigator.vibrate([180, 90, 180])
+    if ('Notification' in window && Notification.permission === 'granted') {
+      try { new Notification(title, { body }) } catch { /* ignore */ }
+    }
+    setToast(title)
+    setTimeout(() => setToast(''), 4000)
+  }
 
   useEffect(() => {
     if (!uid) return
@@ -198,8 +232,10 @@ function Focus({ uid }) {
       clearInterval(timer.current)
       if (phase === 'focus') {
         supabase.from('focus_sessions').insert({ user_id: uid, duration_min: focusMin, completed: true }).then(loadStreak)
+        notifyDone('Focus session complete', 'Time for a break.')
         setPhase('break'); setLeft(Math.round(breakMin * 60))
       } else {
+        notifyDone('Break over', 'Ready for another focus session?')
         setPhase('idle'); setLeft(null)
       }
     }
@@ -211,6 +247,7 @@ function Focus({ uid }) {
 
   return (
     <div className="panel" style={{ textAlign: 'center' }}>
+      {toast && <div className="pill accent" style={{ display: 'block', marginBottom: '0.7rem' }}>{toast}</div>}
       <div className="hud" style={{ marginBottom: '0.6rem' }}>
         {phase === 'idle' ? 'FOCUS · STANDBY' : phase === 'focus' ? 'FOCUS · RUNNING' : 'BREAK · RUNNING'}
       </div>

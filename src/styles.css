@@ -185,6 +185,8 @@ textarea.input { resize: vertical; min-height: 70px; }
   background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
   padding: 0.7rem 0.85rem;
 }
+:root[data-theme='dark'] .item { background: rgba(20, 28, 50, 0.55); backdrop-filter: blur(10px); }
+:root[data-theme='light'] .item { background: rgba(255, 255, 255, 0.65); backdrop-filter: blur(10px); }
 .item.done .item-title { text-decoration: line-through; color: var(--text-dim); }
 .item-title { flex: 1; font-size: 0.92rem; }
 .item-sub { font-size: 0.72rem; color: var(--text-dim); }

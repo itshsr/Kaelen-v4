@@ -96,8 +96,10 @@ function People({ uid }) {
           <input className="input" placeholder="Relationship" value={form.relationship} onChange={e => set('relationship', e.target.value)} />
           <input className="input" placeholder="Emoji" value={form.emoji} onChange={e => set('emoji', e.target.value)} />
           <input className="input" placeholder="City" value={form.city} onChange={e => set('city', e.target.value)} />
-          <input className="input" type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} />
-          <input className="input" type="time" value={form.birth_time} onChange={e => set('birth_time', e.target.value)} />
+          <div className="field"><label className="hud">Birth date</label>
+            <input className="input" type="date" value={form.birth_date} onChange={e => set('birth_date', e.target.value)} /></div>
+          <div className="field"><label className="hud">Birth time</label>
+            <input className="input" type="time" value={form.birth_time} onChange={e => set('birth_time', e.target.value)} /></div>
           <input className="input" placeholder="Birth place" value={form.birth_place} onChange={e => set('birth_place', e.target.value)} />
           <input className="input" placeholder="Notes" value={form.notes} onChange={e => set('notes', e.target.value)} />
         </div>

@@ -109,6 +109,11 @@ export default function Home({ profileName }) {
             </div>
           </div>
           <div className={`progress ${over ? 'over' : ''}`}><div style={{ width: `${pct}%` }} /></div>
+          {budget.cap > 0 && (
+            <div className="hud" style={{ marginTop: '0.5rem' }}>
+              {over ? `OVER CAP BY ${inr(budget.spent - budget.cap)}` : `${inr(Math.max(budget.cap - budget.spent, 0))} LEFT`}
+            </div>
+          )}
         </div>
 
         <div className="panel" style={{ gridColumn: '1 / -1' }}>
