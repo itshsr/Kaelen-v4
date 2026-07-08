@@ -211,18 +211,18 @@ export default function GalaxyBackground({ theme = 'dark' }) {
         // Single soft pastel sky wash instead of multiply-blended hue blobs —
         // multiply on a pale base was producing a muddy grey-purple result.
         const wash = ctx.createLinearGradient(0, 0, 0, height);
-        wash.addColorStop(0, "rgba(210, 222, 246, 0.55)");
-        wash.addColorStop(0.5, "rgba(224, 226, 244, 0.35)");
-        wash.addColorStop(1, "rgba(236, 224, 232, 0.4)");
+        wash.addColorStop(0, "rgba(186, 205, 245, 0.62)");
+        wash.addColorStop(0.5, "rgba(205, 200, 240, 0.46)");
+        wash.addColorStop(1, "rgba(232, 202, 222, 0.5)");
         ctx.fillStyle = wash;
         ctx.fillRect(0, 0, width, height);
-        // faint tinted pockets, very low alpha, additive so they lighten rather than muddy
+        // faint tinted pockets, low alpha, additive so they lighten rather than muddy
         ctx.globalCompositeOperation = "lighter";
         for (const n of nebulae) {
           const nx = n.x + px * 0.15;
           const ny = n.y + py * 0.15;
           const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r);
-          grad.addColorStop(0, `hsla(${n.hue}, 55%, 90%, ${n.alpha * 0.22})`);
+          grad.addColorStop(0, `hsla(${n.hue}, 65%, 82%, ${n.alpha * 0.4})`);
           grad.addColorStop(1, "hsla(0,0%,100%,0)");
           ctx.fillStyle = grad;
           ctx.fillRect(0, 0, width, height);
