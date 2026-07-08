@@ -6,8 +6,10 @@ import { useEffect, useRef } from "react";
  * background. Mounted once near the root — paints behind everything and is
  * pointer-events: none so it never blocks UI. Self-contained canvas, no assets.
  */
-export default function GalaxyBackground() {
+export default function GalaxyBackground({ theme = 'dark' }) {
   const canvasRef = useRef(null);
+  const themeRef = useRef(theme);
+  themeRef.current = theme;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -189,39 +191,57 @@ export default function GalaxyBackground() {
       px += (targetPX - px) * 0.12;
       py += (targetPY - py) * 0.12;
 
+      const isLight = themeRef.current === 'light';
+
       const bg = ctx.createRadialGradient(width * 0.5, height * 0.55, 0, width * 0.5, height * 0.55, Math.max(width, height) * 0.9);
-      bg.addColorStop(0, "#070b18");
-      bg.addColorStop(0.55, "#04060f");
-      bg.addColorStop(1, "#010208");
+      if (isLight) {
+        bg.addColorStop(0, "#eef1f8");
+        bg.addColorStop(0.55, "#e3e8f4");
+        bg.addColorStop(1, "#d6dcee");
+      } else {
+        bg.addColorStop(0, "#070b18");
+        bg.addColorStop(0.55, "#04060f");
+        bg.addColorStop(1, "#010208");
+      }
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.globalCompositeOperation = "screen";
+      ctx.globalCompositeOperation = isLight ? "multiply" : "screen";
       for (const n of nebulae) {
         const nx = n.x + px * 0.15;
         const ny = n.y + py * 0.15;
         const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r);
-        grad.addColorStop(0, `hsla(${n.hue}, 85%, 62%, ${n.alpha})`);
-        grad.addColorStop(0.35, `hsla(${n.hue}, 80%, 48%, ${n.alpha * 0.75})`);
-        grad.addColorStop(0.7, `hsla(${n.hue}, 70%, 30%, ${n.alpha * 0.25})`);
-        grad.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+        const nAlpha = isLight ? n.alpha * 0.35 : n.alpha;
+        if (isLight) {
+          grad.addColorStop(0, `hsla(${n.hue}, 70%, 88%, ${nAlpha})`);
+          grad.addColorStop(0.35, `hsla(${n.hue}, 65%, 92%, ${nAlpha * 0.7})`);
+          grad.addColorStop(0.7, `hsla(${n.hue}, 60%, 96%, ${nAlpha * 0.3})`);
+          grad.addColorStop(1, "hsla(0, 0%, 100%, 0)");
+        } else {
+          grad.addColorStop(0, `hsla(${n.hue}, 85%, 62%, ${nAlpha})`);
+          grad.addColorStop(0.35, `hsla(${n.hue}, 80%, 48%, ${nAlpha * 0.75})`);
+          grad.addColorStop(0.7, `hsla(${n.hue}, 70%, 30%, ${nAlpha * 0.25})`);
+          grad.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+        }
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, width, height);
       }
-      ctx.globalCompositeOperation = "lighter";
-      for (const n of nebulae) {
-        const nx = n.x + px * 0.15;
-        const ny = n.y + py * 0.15;
-        const core = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 0.35);
-        core.addColorStop(0, `hsla(${n.hue}, 90%, 70%, ${n.alpha * 0.35})`);
-        core.addColorStop(1, "hsla(0,0%,0%,0)");
-        ctx.fillStyle = core;
-        ctx.fillRect(0, 0, width, height);
+      if (!isLight) {
+        ctx.globalCompositeOperation = "lighter";
+        for (const n of nebulae) {
+          const nx = n.x + px * 0.15;
+          const ny = n.y + py * 0.15;
+          const core = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r * 0.35);
+          core.addColorStop(0, `hsla(${n.hue}, 90%, 70%, ${n.alpha * 0.35})`);
+          core.addColorStop(1, "hsla(0,0%,0%,0)");
+          ctx.fillStyle = core;
+          ctx.fillRect(0, 0, width, height);
+        }
       }
       ctx.globalCompositeOperation = "source-over";
 
       for (const c of constellations) {
-        ctx.strokeStyle = `rgba(180, 200, 235, ${c.alpha})`;
+        ctx.strokeStyle = isLight ? `rgba(90, 100, 140, ${c.alpha * 1.3})` : `rgba(180, 200, 235, ${c.alpha})`;
         ctx.lineWidth = 0.5;
         ctx.beginPath();
         for (const [a, b] of c.edges) {
@@ -234,20 +254,21 @@ export default function GalaxyBackground() {
         ctx.stroke();
       }
 
-      ctx.globalCompositeOperation = "lighter";
+      ctx.globalCompositeOperation = isLight ? "source-over" : "lighter";
       for (const s of stars) {
         const tw = 0.55 + 0.45 * Math.sin(t * s.twSpeed + s.twPhase);
-        const a = s.baseA * tw;
+        const a = (isLight ? s.baseA * 0.55 : s.baseA) * tw;
         const sx = s.x + px * s.depth * 0.6;
         const sy = s.y + py * s.depth * 0.6;
 
-        const light = s.warm ? 85 : 95;
-        ctx.fillStyle = `hsla(${s.hue}, ${s.warm ? 60 : 30}%, ${light}%, ${a})`;
+        const light = isLight ? 30 : (s.warm ? 85 : 95);
+        const sat = isLight ? 45 : (s.warm ? 60 : 30);
+        ctx.fillStyle = `hsla(${s.hue}, ${sat}%, ${light}%, ${a})`;
         ctx.beginPath();
         ctx.arc(sx, sy, s.r, 0, Math.PI * 2);
         ctx.fill();
 
-        if (s.depth > 0.7) {
+        if (s.depth > 0.7 && !isLight) {
           const glowR = s.r * (s.baseA > 0.9 ? 10 : 6);
           const glow = ctx.createRadialGradient(sx, sy, 0, sx, sy, glowR);
           glow.addColorStop(0, `hsla(${s.hue}, 60%, 92%, ${a * 0.5})`);

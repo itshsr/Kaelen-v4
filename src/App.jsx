@@ -70,14 +70,14 @@ export default function App() {
   if (session === undefined) return null
   if (!session) return (
     <>
-      <GalaxyBackground />
+      <GalaxyBackground theme={theme} />
       <Login />
     </>
   )
 
   return (
     <BrowserRouter>
-      <GalaxyBackground />
+      <GalaxyBackground theme={theme} />
       <div className="shell">
         <header className="topbar">
           <span className="brand-lockup"><img src="/wolf.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
