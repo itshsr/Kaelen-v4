@@ -183,7 +183,7 @@ function Focus({ uid }) {
 
   const start = async () => {
     await supabase.from('user_settings').update({ focus_duration_min: focusMin, break_duration_min: breakMin }).eq('user_id', uid)
-    setPhase('focus'); setLeft(focusMin * 60)
+    setPhase('focus'); setLeft(Math.round(focusMin * 60))
   }
   const stop = () => { clearInterval(timer.current); setPhase('idle'); setLeft(null) }
 
@@ -198,15 +198,16 @@ function Focus({ uid }) {
       clearInterval(timer.current)
       if (phase === 'focus') {
         supabase.from('focus_sessions').insert({ user_id: uid, duration_min: focusMin, completed: true }).then(loadStreak)
-        setPhase('break'); setLeft(breakMin * 60)
+        setPhase('break'); setLeft(Math.round(breakMin * 60))
       } else {
         setPhase('idle'); setLeft(null)
       }
     }
   }, [left]) // eslint-disable-line
 
-  const mm = left !== null ? String(Math.floor(left / 60)).padStart(2, '0') : String(focusMin).padStart(2, '0')
-  const ss = left !== null ? String(left % 60).padStart(2, '0') : '00'
+  const idleTotal = Math.round(focusMin * 60)
+  const mm = left !== null ? String(Math.floor(left / 60)).padStart(2, '0') : String(Math.floor(idleTotal / 60)).padStart(2, '0')
+  const ss = left !== null ? String(left % 60).padStart(2, '0') : String(idleTotal % 60).padStart(2, '0')
 
   return (
     <div className="panel" style={{ textAlign: 'center' }}>
@@ -220,9 +221,9 @@ function Focus({ uid }) {
         <>
           <div className="row wrap" style={{ justifyContent: 'center', marginBottom: '0.9rem' }}>
             <label className="hud">Focus (min)</label>
-            <input className="input" type="number" min="1" max="180" style={{ width: 80 }} value={focusMin} onChange={e => setFocusMin(+e.target.value || 1)} />
+            <input className="input" type="number" min="0.1" step="0.1" max="180" style={{ width: 80 }} value={focusMin} onChange={e => setFocusMin(+e.target.value || 0.1)} />
             <label className="hud">Break (min)</label>
-            <input className="input" type="number" min="1" max="60" style={{ width: 80 }} value={breakMin} onChange={e => setBreakMin(+e.target.value || 1)} />
+            <input className="input" type="number" min="0.1" step="0.1" max="60" style={{ width: 80 }} value={breakMin} onChange={e => setBreakMin(+e.target.value || 0.1)} />
           </div>
           <button className="btn-sm" onClick={start}>Start focus</button>
         </>
