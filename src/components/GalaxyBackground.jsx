@@ -22,6 +22,7 @@ export default function GalaxyBackground({ theme = 'dark' }) {
     let height = 0;
 
     let stars = [];
+    let planets = [];
     let nebulae = [];
     let constellations = [];
     let meteors = [];
@@ -35,6 +36,13 @@ export default function GalaxyBackground({ theme = 'dark' }) {
     const rand = (a, b) => a + Math.random() * (b - a);
 
     function buildScene() {
+      planets = Array.from({ length: 3 }, () => ({
+        x: rand(width * 0.1, width * 0.9),
+        y: rand(height * 0.1, height * 0.85),
+        r: rand(Math.min(width, height) * 0.06, Math.min(width, height) * 0.13),
+        hue: [220, 30, 190][Math.floor(Math.random() * 3)],
+        depth: rand(0.15, 0.35),
+      }));
       const area = width * height;
       const starCount = Math.min(2200, Math.floor(area / 900));
       const flareCount = Math.min(10, Math.max(6, Math.floor(area / 260000)));
@@ -253,6 +261,23 @@ export default function GalaxyBackground({ theme = 'dark' }) {
         }
       }
       ctx.globalCompositeOperation = "source-over";
+
+      if (isLight) {
+        ctx.globalCompositeOperation = "multiply";
+        for (const p of planets) {
+          const pxp = p.x + px * p.depth * 0.4;
+          const pyp = p.y + py * p.depth * 0.4;
+          const g = ctx.createRadialGradient(pxp - p.r * 0.3, pyp - p.r * 0.3, 0, pxp, pyp, p.r);
+          g.addColorStop(0, `hsla(${p.hue}, 40%, 88%, 0.16)`);
+          g.addColorStop(0.7, `hsla(${p.hue}, 35%, 90%, 0.09)`);
+          g.addColorStop(1, "hsla(0,0%,100%,0)");
+          ctx.fillStyle = g;
+          ctx.beginPath();
+          ctx.arc(pxp, pyp, p.r, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.globalCompositeOperation = "source-over";
+      }
 
       for (const c of constellations) {
         ctx.strokeStyle = isLight ? `rgba(70, 80, 125, ${c.alpha * 2.2})` : `rgba(180, 200, 235, ${c.alpha})`;

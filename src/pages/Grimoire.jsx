@@ -7,16 +7,17 @@ export function useHabits(uid) {
   const [habits, setHabits] = useState([])
   const [doneToday, setDoneToday] = useState(new Set())
   const [streaks, setStreaks] = useState({})
+  const [err, setErr] = useState('')
 
   const load = async () => {
-    const [{ data: h }, { data: c }] = await Promise.all([
+    const [{ data: h, error: he }, { data: c, error: ce }] = await Promise.all([
       supabase.from('habits').select('*').order('created_at'),
       supabase.from('habit_completions').select('habit_id,completed_on').order('completed_on', { ascending: false }),
     ])
+    if (he || ce) { setErr((he || ce).message) }
     setHabits(h || [])
     const t = today()
     setDoneToday(new Set((c || []).filter(x => x.completed_on === t).map(x => x.habit_id)))
-    // streak: consecutive days ending today or yesterday
     const byHabit = {}
     ;(c || []).forEach(x => { (byHabit[x.habit_id] ||= new Set()).add(x.completed_on) })
     const s = {}
@@ -33,25 +34,35 @@ export function useHabits(uid) {
   useEffect(() => { if (uid) load() }, [uid]) // eslint-disable-line
 
   const toggle = async habitId => {
+    setErr('')
+    let error
     if (doneToday.has(habitId)) {
-      await supabase.from('habit_completions').delete().eq('habit_id', habitId).eq('completed_on', today())
+      ;({ error } = await supabase.from('habit_completions').delete().eq('habit_id', habitId).eq('completed_on', today()))
     } else {
-      await supabase.from('habit_completions').insert({ user_id: uid, habit_id: habitId, completed_on: today() })
+      ;({ error } = await supabase.from('habit_completions').insert({ user_id: uid, habit_id: habitId, completed_on: today() }))
     }
+    if (error) { setErr(error.message); return }
     load()
   }
   const add = async name => {
+    setErr('')
     if (!name.trim()) return
-    await supabase.from('habits').insert({ user_id: uid, name: name.trim() })
+    const { error } = await supabase.from('habits').insert({ user_id: uid, name: name.trim() })
+    if (error) { setErr(error.message); return }
     load()
   }
-  const remove = async id => { await supabase.from('habits').delete().eq('id', id); load() }
+  const remove = async id => {
+    setErr('')
+    const { error } = await supabase.from('habits').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
 
-  return { habits, doneToday, streaks, toggle, add, remove }
+  return { habits, doneToday, streaks, toggle, add, remove, err }
 }
 
 function Habits({ uid }) {
-  const { habits, doneToday, streaks, toggle, add, remove } = useHabits(uid)
+  const { habits, doneToday, streaks, toggle, add, remove, err } = useHabits(uid)
   const [name, setName] = useState('')
   return (
     <div className="panel">
@@ -60,6 +71,7 @@ function Habits({ uid }) {
           onKeyDown={e => e.key === 'Enter' && (add(name), setName(''))} />
         <button className="btn-sm" onClick={() => { add(name); setName('') }}>Add</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {habits.length === 0 && <div className="empty">No habits yet.</div>}
         {habits.map(h => (
@@ -85,25 +97,33 @@ function Notes({ uid }) {
   const [editing, setEditing] = useState(null) // null | 'new' | note object
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
+  const [err, setErr] = useState('')
 
   const load = async () => {
-    const { data } = await supabase.from('notes').select('*').order('updated_at', { ascending: false })
+    const { data, error } = await supabase.from('notes').select('*').order('updated_at', { ascending: false })
+    if (error) setErr(error.message)
     setNotes(data || [])
   }
   useEffect(() => { if (uid) load() }, [uid])
 
-  const openNew = () => { setEditing('new'); setTitle(''); setContent('') }
-  const openEdit = n => { setEditing(n); setTitle(n.title); setContent(n.content || '') }
+  const openNew = () => { setEditing('new'); setTitle(''); setContent(''); setErr('') }
+  const openEdit = n => { setEditing(n); setTitle(n.title); setContent(n.content || ''); setErr('') }
   const save = async () => {
+    setErr('')
     if (!title.trim()) return
-    if (editing === 'new') {
-      await supabase.from('notes').insert({ user_id: uid, title: title.trim(), content })
-    } else {
-      await supabase.from('notes').update({ title: title.trim(), content, updated_at: new Date().toISOString() }).eq('id', editing.id)
-    }
+    const query = editing === 'new'
+      ? supabase.from('notes').insert({ user_id: uid, title: title.trim(), content })
+      : supabase.from('notes').update({ title: title.trim(), content, updated_at: new Date().toISOString() }).eq('id', editing.id)
+    const { error } = await query
+    if (error) { setErr(error.message); return }
     setEditing(null); load()
   }
-  const del = async id => { await supabase.from('notes').delete().eq('id', id); setEditing(null); load() }
+  const del = async id => {
+    setErr('')
+    const { error } = await supabase.from('notes').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    setEditing(null); load()
+  }
 
   const filtered = notes.filter(n =>
     n.title.toLowerCase().includes(q.toLowerCase()) || (n.content || '').toLowerCase().includes(q.toLowerCase()))
@@ -111,6 +131,7 @@ function Notes({ uid }) {
   if (editing !== null) {
     return (
       <div className="panel grid">
+        {err && <div className="auth-err">{err}</div>}
         <input className="input" placeholder="Title" value={title} onChange={e => setTitle(e.target.value)} />
         <textarea className="input" rows={8} placeholder="Write…" value={content} onChange={e => setContent(e.target.value)} />
         <div className="row">
@@ -128,6 +149,7 @@ function Notes({ uid }) {
         <input className="input" placeholder="Search notes" value={q} onChange={e => setQ(e.target.value)} />
         <button className="btn-sm" onClick={openNew}>New</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {filtered.length === 0 && <div className="empty">No notes.</div>}
         {filtered.map(n => (

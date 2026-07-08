@@ -18,6 +18,7 @@ function Expenses({ uid, cards, reload }) {
   const [customCat, setCustomCat] = useState('')
   const [note, setNote] = useState('')
   const [method, setMethod] = useState('Cash')
+  const [err, setErr] = useState('')
 
   const load = async () => {
     const { data } = await supabase.from('expenses').select('*')
@@ -27,17 +28,24 @@ function Expenses({ uid, cards, reload }) {
   useEffect(() => { if (uid) load() }, [uid, reload])
 
   const add = async () => {
+    setErr('')
     const amt = parseFloat(amount)
     if (!amt || amt <= 0) return
     const category = cat === '__custom' ? (customCat.trim() || 'Other') : cat
-    await supabase.from('expenses').insert({
+    const isCard = method !== 'Cash' && method !== 'UPI'
+    const { error } = await supabase.from('expenses').insert({
       user_id: uid, amount: amt, category, note: note.trim() || null,
-      payment_method: method === 'Cash' ? 'Cash' : 'Card',
-      card_id: method === 'Cash' ? null : method,
+      payment_method: isCard ? 'Card' : method,
+      card_id: isCard ? method : null,
     })
+    if (error) { setErr(error.message); return }
     setAmount(''); setNote(''); setCustomCat(''); load()
   }
-  const del = async id => { await supabase.from('expenses').delete().eq('id', id); load() }
+  const del = async id => {
+    const { error } = await supabase.from('expenses').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
 
   return (
@@ -58,6 +66,7 @@ function Expenses({ uid, cards, reload }) {
         <div className="row wrap">
           <select className="input" style={{ flex: 1, minWidth: 110 }} value={method} onChange={e => setMethod(e.target.value)}>
             <option>Cash</option>
+            <option value="UPI">UPI</option>
             {cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
           </select>
           <input className="input" placeholder="Note (optional)" style={{ flex: 2, minWidth: 130 }}
@@ -65,6 +74,7 @@ function Expenses({ uid, cards, reload }) {
           <button className="btn-sm" onClick={add}>Log</button>
         </div>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {expenses.length === 0 && <div className="empty">No expenses this month.</div>}
         {expenses.map(x => (
@@ -72,7 +82,7 @@ function Expenses({ uid, cards, reload }) {
             <div style={{ flex: 1 }}>
               <div className="item-title">{inr(x.amount)} · {x.category}</div>
               <div className="item-sub">
-                {x.spent_on} · {x.card_id ? cardLabel(x.card_id) : 'Cash'}{x.note ? ` · ${x.note}` : ''}
+                {x.spent_on} · {x.card_id ? cardLabel(x.card_id) : (x.payment_method || 'Cash')}{x.note ? ` · ${x.note}` : ''}
               </div>
             </div>
             <button className="btn-ghost danger" onClick={() => del(x.id)}>✕</button>

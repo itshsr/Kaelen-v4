@@ -111,11 +111,14 @@ body {
 
 .nav {
   position: fixed; bottom: 0; left: 0; right: 0; z-index: 10;
-  display: flex; justify-content: space-around;
+  display: flex; justify-content: flex-start;
   background: var(--panel); backdrop-filter: blur(18px);
   border-top: 1px solid var(--line); padding: 0.45rem 0.3rem calc(0.45rem + env(safe-area-inset-bottom));
+  overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
 }
+.nav::-webkit-scrollbar { display: none; }
 .nav a {
+  flex: 1 0 auto; min-width: 15%;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   text-decoration: none; color: var(--text-dim);
   font-family: 'JetBrains Mono', monospace; font-size: 0.55rem; letter-spacing: 0.14em;
@@ -322,7 +325,7 @@ body { background: var(--bg); }
 :root[data-theme='light'] .nav { background: rgba(255, 255, 255, 0.6); }
 
 /* ---------- Nav: bigger, clearer ---------- */
-.nav a { font-size: 0.72rem; letter-spacing: 0.1em; gap: 4px; padding: 0.4rem 0.6rem; }
+.nav a { font-size: 0.68rem; letter-spacing: 0.08em; gap: 4px; padding: 0.4rem 0.4rem; }
 .nav a .dot { width: 6px; height: 6px; }
 @media (min-width: 760px) {
   .nav a { font-size: 0.74rem; }
