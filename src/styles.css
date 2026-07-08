@@ -306,14 +306,16 @@ body { background: var(--bg); }
 .hero-tile {
   position: relative; border-radius: 18px; overflow: hidden; margin-bottom: 1rem;
   border: 1px solid var(--line);
-  background: linear-gradient(135deg, rgba(79,116,255,0.10), rgba(122,92,255,0.06) 55%, rgba(224,164,104,0.08));
+  background: linear-gradient(135deg, rgba(79,116,255,0.14), rgba(122,92,255,0.09) 55%, rgba(224,164,104,0.1));
   backdrop-filter: blur(6px);
 }
+:root[data-theme='dark'] .hero-tile { background-color: rgba(10, 15, 30, 0.55); background-blend-mode: normal; }
+:root[data-theme='light'] .hero-tile { background-color: rgba(255, 255, 255, 0.72); background-blend-mode: normal; }
 
 /* panels: lighter fill so the galaxy shows through, blur carries legibility */
 .panel { background: var(--panel-solid-mix, var(--panel)); }
-:root[data-theme='dark'] .panel { background: rgba(12, 18, 34, 0.5); backdrop-filter: blur(16px); }
-:root[data-theme='light'] .panel { background: rgba(255, 255, 255, 0.62); backdrop-filter: blur(16px); }
+:root[data-theme='dark'] .panel { background: rgba(10, 15, 30, 0.74); backdrop-filter: blur(18px); }
+:root[data-theme='light'] .panel { background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(18px); }
 :root[data-theme='dark'] .topbar { background: rgba(8, 12, 22, 0.42); }
 :root[data-theme='light'] .topbar { background: rgba(255, 255, 255, 0.55); }
 :root[data-theme='dark'] .nav { background: rgba(8, 12, 22, 0.5); }

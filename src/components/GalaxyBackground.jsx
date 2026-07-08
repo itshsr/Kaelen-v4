@@ -206,25 +206,39 @@ export default function GalaxyBackground({ theme = 'dark' }) {
       ctx.fillStyle = bg;
       ctx.fillRect(0, 0, width, height);
 
-      ctx.globalCompositeOperation = isLight ? "multiply" : "screen";
-      for (const n of nebulae) {
-        const nx = n.x + px * 0.15;
-        const ny = n.y + py * 0.15;
-        const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r);
-        const nAlpha = isLight ? n.alpha * 0.35 : n.alpha;
-        if (isLight) {
-          grad.addColorStop(0, `hsla(${n.hue}, 70%, 88%, ${nAlpha})`);
-          grad.addColorStop(0.35, `hsla(${n.hue}, 65%, 92%, ${nAlpha * 0.7})`);
-          grad.addColorStop(0.7, `hsla(${n.hue}, 60%, 96%, ${nAlpha * 0.3})`);
-          grad.addColorStop(1, "hsla(0, 0%, 100%, 0)");
-        } else {
-          grad.addColorStop(0, `hsla(${n.hue}, 85%, 62%, ${nAlpha})`);
-          grad.addColorStop(0.35, `hsla(${n.hue}, 80%, 48%, ${nAlpha * 0.75})`);
-          grad.addColorStop(0.7, `hsla(${n.hue}, 70%, 30%, ${nAlpha * 0.25})`);
-          grad.addColorStop(1, "hsla(0, 0%, 0%, 0)");
-        }
-        ctx.fillStyle = grad;
+      ctx.globalCompositeOperation = isLight ? "source-over" : "screen";
+      if (isLight) {
+        // Single soft pastel sky wash instead of multiply-blended hue blobs —
+        // multiply on a pale base was producing a muddy grey-purple result.
+        const wash = ctx.createLinearGradient(0, 0, 0, height);
+        wash.addColorStop(0, "rgba(210, 222, 246, 0.55)");
+        wash.addColorStop(0.5, "rgba(224, 226, 244, 0.35)");
+        wash.addColorStop(1, "rgba(236, 224, 232, 0.4)");
+        ctx.fillStyle = wash;
         ctx.fillRect(0, 0, width, height);
+        // faint tinted pockets, very low alpha, additive so they lighten rather than muddy
+        ctx.globalCompositeOperation = "lighter";
+        for (const n of nebulae) {
+          const nx = n.x + px * 0.15;
+          const ny = n.y + py * 0.15;
+          const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r);
+          grad.addColorStop(0, `hsla(${n.hue}, 55%, 90%, ${n.alpha * 0.22})`);
+          grad.addColorStop(1, "hsla(0,0%,100%,0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, width, height);
+        }
+      } else {
+        for (const n of nebulae) {
+          const nx = n.x + px * 0.15;
+          const ny = n.y + py * 0.15;
+          const grad = ctx.createRadialGradient(nx, ny, 0, nx, ny, n.r);
+          grad.addColorStop(0, `hsla(${n.hue}, 85%, 62%, ${n.alpha})`);
+          grad.addColorStop(0.35, `hsla(${n.hue}, 80%, 48%, ${n.alpha * 0.75})`);
+          grad.addColorStop(0.7, `hsla(${n.hue}, 70%, 30%, ${n.alpha * 0.25})`);
+          grad.addColorStop(1, "hsla(0, 0%, 0%, 0)");
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, width, height);
+        }
       }
       if (!isLight) {
         ctx.globalCompositeOperation = "lighter";
