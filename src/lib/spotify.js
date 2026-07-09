@@ -3,7 +3,11 @@ import { supabase } from './supabase'
 // Spotify Web API — Authorization Code + PKCE flow (public client, no secret required).
 // Requires Spotify Premium for playback control endpoints.
 const CLIENT_ID = '1b9f5a805228469b8a800eb19b5bc2ee'
-const REDIRECT_URI = `${window.location.origin}/spotify-callback`
+// Hardcoded to the stable production domain — Vercel preview URLs (per-deploy hashes)
+// will never match what's registered in the Spotify dashboard, so this must NOT be
+// derived from window.location.origin. Always access KAELEN via this domain for
+// Spotify login to work.
+const REDIRECT_URI = 'https://kaelen-v4.vercel.app/spotify-callback'
 const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state'
 
 const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf)))
