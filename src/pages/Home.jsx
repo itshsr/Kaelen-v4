@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useHabits } from './Grimoire'
+import SpotifyCard from '../components/SpotifyCard'
 
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
 const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
@@ -115,6 +116,8 @@ export default function Home({ profileName }) {
             </div>
           )}
         </div>
+
+        <SpotifyCard />
 
         <div className="panel" style={{ gridColumn: '1 / -1' }}>
           <span className="hud" style={{ display: 'block', marginBottom: '0.7rem' }}>QUICK ACTIONS</span>

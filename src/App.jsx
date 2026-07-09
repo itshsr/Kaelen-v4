@@ -7,6 +7,7 @@ import Forge from './pages/Forge'
 import Vault from './pages/Vault'
 import Grimoire from './pages/Grimoire'
 import User from './pages/User'
+import SpotifyCallback from './pages/SpotifyCallback'
 import Core from './pages/Core'
 import Oracle from './pages/Oracle'
 import GalaxyBackground from './components/GalaxyBackground'
@@ -98,6 +99,7 @@ export default function App() {
             <Route path="/grimoire" element={<Grimoire />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/user" element={<User />} />
+            <Route path="/spotify-callback" element={<SpotifyCallback />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
