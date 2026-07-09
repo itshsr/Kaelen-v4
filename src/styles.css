@@ -186,7 +186,7 @@ textarea.input { resize: vertical; min-height: 70px; }
   padding: 0.7rem 0.85rem;
 }
 :root[data-theme='dark'] .item { background: rgba(20, 28, 50, 0.55); backdrop-filter: blur(10px); }
-:root[data-theme='light'] .item { background: rgba(255, 255, 255, 0.65); backdrop-filter: blur(10px); }
+:root[data-theme='light'] .item { background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(12px); }
 .item.done .item-title { text-decoration: line-through; color: var(--text-dim); }
 .item-title { flex: 1; font-size: 0.92rem; }
 .item-sub { font-size: 0.72rem; color: var(--text-dim); }
@@ -320,7 +320,7 @@ body { background: var(--bg); }
 /* panels: lighter fill so the galaxy shows through, blur carries legibility */
 .panel { background: var(--panel-solid-mix, var(--panel)); }
 :root[data-theme='dark'] .panel { background: rgba(10, 15, 30, 0.74); backdrop-filter: blur(18px); }
-:root[data-theme='light'] .panel { background: rgba(255, 255, 255, 0.86); backdrop-filter: blur(18px); }
+:root[data-theme='light'] .panel { background: rgba(255, 255, 255, 0.62); backdrop-filter: blur(20px); }
 :root[data-theme='dark'] .topbar { background: rgba(8, 12, 22, 0.42); }
 :root[data-theme='light'] .topbar { background: rgba(255, 255, 255, 0.55); }
 :root[data-theme='dark'] .nav { background: rgba(8, 12, 22, 0.5); }

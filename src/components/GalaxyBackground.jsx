@@ -36,12 +36,16 @@ export default function GalaxyBackground({ theme = 'dark' }) {
     const rand = (a, b) => a + Math.random() * (b - a);
 
     function buildScene() {
-      planets = Array.from({ length: 3 }, () => ({
-        x: rand(width * 0.1, width * 0.9),
-        y: rand(height * 0.1, height * 0.85),
-        r: rand(Math.min(width, height) * 0.06, Math.min(width, height) * 0.13),
-        hue: [220, 30, 190][Math.floor(Math.random() * 3)],
-        depth: rand(0.15, 0.35),
+      const cells = [
+        [0.08, 0.35, 0.05, 0.28], [0.62, 0.9, 0.08, 0.3], [0.15, 0.4, 0.55, 0.8],
+        [0.65, 0.92, 0.55, 0.82], [0.38, 0.6, 0.32, 0.55],
+      ]
+      planets = cells.map(([x0, x1, y0, y1]) => ({
+        x: rand(width * x0, width * x1),
+        y: rand(height * y0, height * y1),
+        r: rand(Math.min(width, height) * 0.08, Math.min(width, height) * 0.16),
+        hue: [220, 30, 190, 260, 40][Math.floor(Math.random() * 5)],
+        depth: rand(0.12, 0.3),
       }));
       const area = width * height;
       const starCount = Math.min(2200, Math.floor(area / 900));
@@ -268,8 +272,9 @@ export default function GalaxyBackground({ theme = 'dark' }) {
           const pxp = p.x + px * p.depth * 0.4;
           const pyp = p.y + py * p.depth * 0.4;
           const g = ctx.createRadialGradient(pxp - p.r * 0.3, pyp - p.r * 0.3, 0, pxp, pyp, p.r);
-          g.addColorStop(0, `hsla(${p.hue}, 40%, 88%, 0.16)`);
-          g.addColorStop(0.7, `hsla(${p.hue}, 35%, 90%, 0.09)`);
+          g.addColorStop(0, `hsla(${p.hue}, 42%, 86%, 0.12)`);
+          g.addColorStop(0.4, `hsla(${p.hue}, 38%, 89%, 0.08)`);
+          g.addColorStop(0.75, `hsla(${p.hue}, 35%, 92%, 0.03)`);
           g.addColorStop(1, "hsla(0,0%,100%,0)");
           ctx.fillStyle = g;
           ctx.beginPath();
