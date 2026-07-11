@@ -4,13 +4,15 @@ import { supabase } from '../lib/supabase'
 import { DECK, drawCards } from '../lib/tarot'
 import { lifePath, destiny, soulUrge, personality, NUM_THEMES } from '../lib/numerology'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
+import { codexFor, CODEX_FRAMEWORK, CODEX } from '../lib/tarotCodex'
 
-const BASIM_STYLE = `You are the ORACLE voice of this app — measured, symbolic, a little mystical, but honest. Frame every reading as symbolic and interpretive tradition, never as certain prediction. Keep readings under 180 words.
+const BASIM_STYLE = `You are the ORACLE voice of this app — measured, symbolic, a little mystical, but honest. Frame every reading as symbolic and interpretive tradition, never as certain prediction. Keep readings under 220 words.
 
 ${INTEGRITY}
 Additional rules for readings:
 - Use ONLY the birth details, names, and cards explicitly given in the prompt. If a detail is missing, say it is missing and stop — never assume or invent it.
-- Do not invent card meanings beyond widely recognized traditional associations.`
+- When reference text for a card is provided in the prompt (labeled "REFERENCE:"), that text is the user's own personal tarot study material. Base your interpretation of that card primarily on that reference text, not on your own general knowledge of tarot. Only fall back to widely recognized traditional associations if no reference text is provided for a card.
+- Do not invent card meanings beyond what is given or widely recognized traditional associations.`
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -75,7 +77,9 @@ function DailyTarot({ uid }) {
       {card ? (
         <>
           <div className="display" style={{ fontSize: '1.4rem', marginBottom: '0.4rem' }}>{card.name}</div>
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.88rem' }}>{card.meaning}</div>
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem', textAlign: 'left', lineHeight: 1.6 }}>
+            {codexFor(card.name) || card.meaning}
+          </div>
         </>
       ) : (
         <button className="btn-sm" onClick={draw}>Draw today's card</button>
@@ -101,7 +105,11 @@ function Spread({ hasKey }) {
         system: BASIM_STYLE,
         messages: [{
           role: 'user',
-          content: `Three-card spread (past / present / future):\n1. Past — ${cards[0].name} (${cards[0].meaning})\n2. Present — ${cards[1].name} (${cards[1].meaning})\n3. Future — ${cards[2].name} (${cards[2].meaning})\nGive a short interpretive reading connecting the three.`,
+          content: `Three-card spread (past / present / future):\n${['Past', 'Present', 'Future'].map((label, i) => {
+            const c = cards[i]
+            const ref = codexFor(c.name)
+            return `${i + 1}. ${label} — ${c.name}${ref ? `\nREFERENCE: ${ref}` : ` (${c.meaning})`}`
+          }).join('\n')}\n\n${CODEX_FRAMEWORK}\n\nGive a short interpretive reading connecting the three, grounded in the reference text above where provided.`,
         }],
         signal: abortRef.current.signal,
       })
@@ -216,7 +224,7 @@ function PhotoScan({ hasKey }) {
         system: BASIM_STYLE + '\nFor photo scans specifically: identify which tarot card(s) are shown in the image (name each one exactly as printed, or your best identification if partially obscured), state whether each is upright or reversed if visible, then give a reading using traditional meanings for those cards. If you cannot confidently identify a card, say so plainly rather than guessing a specific card name.',
         messages: [{
           role: 'user',
-          content: 'This is a photo of tarot card(s) I have drawn myself. Identify the card(s) and give a reading.',
+          content: `This is a photo of tarot card(s) I have drawn myself. Identify the card(s), then look up each identified card by exact name in the REFERENCE CODEX below and ground your reading in that entry. If a card isn't in the codex or you can't confidently identify it, say so rather than guessing.\n\nREFERENCE CODEX (my personal tarot study material, one entry per card):\n${Object.entries(CODEX).map(([name, text]) => `${name}: ${text}`).join('\n')}\n\n${CODEX_FRAMEWORK}`,
           image: { mimeType: file.type || 'image/jpeg', base64 },
         }],
         signal: abortRef.current.signal,
@@ -280,12 +288,15 @@ function CelticCross({ hasKey }) {
   const interpret = async () => {
     setBusy(true); setErr(''); abortRef.current = new AbortController()
     try {
-      const lines = cards.map((c, i) => `${i + 1}. ${CELTIC_POS[i]} \u2014 ${c.name} (${c.meaning})`).join('\n')
+      const lines = cards.map((c, i) => {
+        const ref = codexFor(c.name)
+        return `${i + 1}. ${CELTIC_POS[i]} \u2014 ${c.name}${ref ? `\nREFERENCE: ${ref}` : ` (${c.meaning})`}`
+      }).join('\n')
       const text = await geminiChat({
         system: BASIM_STYLE,
         messages: [{
           role: 'user',
-          content: `Celtic Cross spread, ten positions:\n${lines}\nGive a structured interpretive reading connecting all ten positions, weighted toward the final outcome.`,
+          content: `Celtic Cross spread, ten positions:\n${lines}\n\n${CODEX_FRAMEWORK}\n\nGive a structured interpretive reading connecting all ten positions, weighted toward the final outcome, grounded in the reference text above where provided.`,
         }],
         signal: abortRef.current.signal,
       })
