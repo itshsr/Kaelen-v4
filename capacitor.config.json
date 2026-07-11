@@ -1,0 +1,12 @@
+{
+  "appId": "app.kaelen.os",
+  "appName": "KAELEN",
+  "webDir": "dist",
+  "server": {
+    "url": "https://kaelen-v4.vercel.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

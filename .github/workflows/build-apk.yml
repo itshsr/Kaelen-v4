@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'android/**'
-      - 'capacitor.config.ts'
+      - 'capacitor.config.json'
       - '.github/workflows/build-apk.yml'
   workflow_dispatch: {}
 
@@ -39,6 +39,11 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Install required SDK packages
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools"
 
       - name: Make gradlew executable
         run: chmod +x android/gradlew
