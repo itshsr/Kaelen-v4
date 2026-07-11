@@ -200,6 +200,62 @@ function fileToBase64(file) {
   })
 }
 
+function ManualEntry({ hasKey }) {
+  const [cardName, setCardName] = useState(DECK[0].name)
+  const [reversed, setReversed] = useState(false)
+  const [reading, setReading] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const abortRef = useRef(null)
+
+  const interpret = async () => {
+    setBusy(true); setErr(''); setReading(''); abortRef.current = new AbortController()
+    try {
+      const ref = codexFor(cardName)
+      const fallback = DECK.find(c => c.name === cardName)?.meaning || ''
+      const orientationNote = reversed
+        ? "This card is REVERSED. My reference codex only documents upright meanings, so for the reversed reading, use traditional tarot convention: a reversed card generally suggests the upright meaning is blocked, delayed, turned inward, or experienced in shadow/excess form. Say plainly that the reversed interpretation is drawn from general convention, not my personal reference."
+        : "This card is upright — read it directly from the reference text."
+      const text = await geminiChat({
+        system: BASIM_STYLE,
+        messages: [{
+          role: 'user',
+          content: `Single card, manually entered: ${cardName} (${reversed ? 'reversed' : 'upright'}).\n${ref ? `REFERENCE: ${ref}` : `(no reference entry found, general meaning: ${fallback})`}\n${orientationNote}\n\n${CODEX_FRAMEWORK}\n\nGive a short interpretive reading for this single card.`,
+        }],
+        signal: abortRef.current.signal,
+      })
+      setReading(text)
+    } catch (e) {
+      if (e.name !== 'AbortError') setErr(e.message === 'NO_KEY' ? 'No API key saved.' : `Model error: ${e.message}`)
+    } finally { setBusy(false) }
+  }
+
+  if (!hasKey) return null
+
+  return (
+    <div className="panel">
+      <div className="hud" style={{ marginBottom: '0.8rem' }}>TYPE YOUR CARD (NO IMAGE, NO VISION CALL)</div>
+      <div className="row wrap" style={{ marginBottom: '0.8rem' }}>
+        <select className="input" style={{ flex: 2, minWidth: 160 }} value={cardName} onChange={e => { setCardName(e.target.value); setReading('') }}>
+          {DECK.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+        </select>
+        <div className="tabs" style={{ margin: 0 }}>
+          <button className={`tab ${!reversed ? 'on' : ''}`} onClick={() => { setReversed(false); setReading('') }}>UPRIGHT</button>
+          <button className={`tab ${reversed ? 'on' : ''}`} onClick={() => { setReversed(true); setReading('') }}>REVERSED</button>
+        </div>
+      </div>
+      {!reading && (
+        busy
+          ? <button className="btn-ghost danger" onClick={() => abortRef.current?.abort()}>Stop</button>
+          : <button className="btn-sm" onClick={interpret}>Interpret (1 API call, text only)</button>
+      )}
+      {err && <div className="auth-err">{err}</div>}
+      {reading && <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginTop: '0.8rem' }}>{reading}</div>}
+      <div className="hud" style={{ marginTop: '0.7rem' }}>SYMBOLIC · INTERPRETIVE · NOT PREDICTION</div>
+    </div>
+  )
+}
+
 function PhotoScan({ hasKey }) {
   const [preview, setPreview] = useState(null)
   const [reading, setReading] = useState('')
@@ -450,6 +506,7 @@ export default function Oracle() {
           <DailyTarot uid={uid} />
           <Spread hasKey={hasKey} />
           <CelticCross hasKey={hasKey} />
+          <ManualEntry hasKey={hasKey} />
           <PhotoScan hasKey={hasKey} />
         </div>
       )}
