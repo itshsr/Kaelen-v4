@@ -182,6 +182,148 @@ function Numerology({ persons }) {
 }
 
 /* ---------- AI readings (kundli / horoscope / vastu) ---------- */
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result.split(',')[1])
+    r.onerror = reject
+    r.readAsDataURL(file)
+  })
+}
+
+function PhotoScan({ hasKey }) {
+  const [preview, setPreview] = useState(null)
+  const [reading, setReading] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const [file, setFile] = useState(null)
+  const abortRef = useRef(null)
+
+  const onPick = e => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setFile(f); setReading(''); setErr('')
+    setPreview(URL.createObjectURL(f))
+  }
+
+  const scan = async () => {
+    if (!file) return
+    setBusy(true); setErr(''); abortRef.current = new AbortController()
+    try {
+      const base64 = await fileToBase64(file)
+      const text = await geminiChat({
+        system: BASIM_STYLE + '\nFor photo scans specifically: identify which tarot card(s) are shown in the image (name each one exactly as printed, or your best identification if partially obscured), state whether each is upright or reversed if visible, then give a reading using traditional meanings for those cards. If you cannot confidently identify a card, say so plainly rather than guessing a specific card name.',
+        messages: [{
+          role: 'user',
+          content: 'This is a photo of tarot card(s) I have drawn myself. Identify the card(s) and give a reading.',
+          image: { mimeType: file.type || 'image/jpeg', base64 },
+        }],
+        signal: abortRef.current.signal,
+      })
+      setReading(text)
+    } catch (e) {
+      if (e.name !== 'AbortError') setErr(e.message === 'NO_KEY' ? 'No API key saved.' : `Model error: ${e.message}`)
+    } finally { setBusy(false) }
+  }
+
+  if (!hasKey) {
+    return (
+      <div className="panel placeholder">
+        <span className="hud">PHOTO SCAN \u00b7 DORMANT</span>
+        <span className="big">Needs the AI layer to read a photo.</span>
+        <Link to="/user" className="btn-ghost" style={{ textDecoration: 'none' }}>Add key in USER \u203a AI KEY</Link>
+      </div>
+    )
+  }
+
+  return (
+    <div className="panel">
+      <div className="row between" style={{ marginBottom: '0.8rem' }}>
+        <span className="hud">SCAN YOUR OWN CARDS</span>
+        <label className="btn-ghost" style={{ cursor: 'pointer' }}>
+          Upload photo
+          <input type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={onPick} />
+        </label>
+      </div>
+      {preview && (
+        <img src={preview} alt="" style={{ maxWidth: '100%', borderRadius: 12, marginBottom: '0.8rem', display: 'block' }} />
+      )}
+      {file && !reading && (
+        busy
+          ? <button className="btn-ghost danger" onClick={() => abortRef.current?.abort()}>Stop</button>
+          : <button className="btn-sm" onClick={scan}>Identify & interpret (1 API call)</button>
+      )}
+      {err && <div className="auth-err">{err}</div>}
+      {reading && <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginTop: '0.6rem' }}>{reading}</div>}
+      <div className="hud" style={{ marginTop: '0.7rem' }}>
+        CARD IDENTIFICATION IS AI-ASSISTED, NOT PERFECT \u00b7 VERIFY AGAINST YOUR OWN DECK
+      </div>
+    </div>
+  )
+}
+
+const CELTIC_POS = [
+  'PRESENT', 'CHALLENGE', 'FOUNDATION', 'RECENT PAST', 'CROWN (POSSIBLE OUTCOME)',
+  'NEAR FUTURE', 'YOUR STANCE', 'EXTERNAL INFLUENCES', 'HOPES OR FEARS', 'FINAL OUTCOME',
+]
+
+function CelticCross({ hasKey }) {
+  const [cards, setCards] = useState(null)
+  const [reading, setReading] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const abortRef = useRef(null)
+
+  const draw = () => { setCards(drawCards(10)); setReading(''); setErr('') }
+
+  const interpret = async () => {
+    setBusy(true); setErr(''); abortRef.current = new AbortController()
+    try {
+      const lines = cards.map((c, i) => `${i + 1}. ${CELTIC_POS[i]} \u2014 ${c.name} (${c.meaning})`).join('\n')
+      const text = await geminiChat({
+        system: BASIM_STYLE,
+        messages: [{
+          role: 'user',
+          content: `Celtic Cross spread, ten positions:\n${lines}\nGive a structured interpretive reading connecting all ten positions, weighted toward the final outcome.`,
+        }],
+        signal: abortRef.current.signal,
+      })
+      setReading(text)
+    } catch (e) {
+      if (e.name !== 'AbortError') setErr(e.message === 'NO_KEY' ? 'No API key saved.' : `Model error: ${e.message}`)
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="panel">
+      <div className="row between" style={{ marginBottom: '0.8rem' }}>
+        <span className="hud">CELTIC CROSS \u00b7 10 CARDS</span>
+        <button className="btn-sm" onClick={draw}>{cards ? 'Draw again' : 'Draw'}</button>
+      </div>
+      {cards && (
+        <div className="grid" style={{ gridTemplateColumns: 'repeat(2,1fr)', gap: '0.6rem', marginBottom: '0.8rem' }}>
+          {cards.map((c, i) => (
+            <div key={i} className="item" style={{ flexDirection: 'column', textAlign: 'center', gap: '0.25rem' }}>
+              <span className="hud">{i + 1}. {CELTIC_POS[i]}</span>
+              <span style={{ fontWeight: 600, fontSize: '0.8rem' }}>{c.name}</span>
+              <span className="item-sub">{c.meaning}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {cards && hasKey && !reading && (
+        busy
+          ? <button className="btn-ghost danger" onClick={() => abortRef.current?.abort()}>Stop</button>
+          : <button className="btn-ghost" onClick={interpret}>Interpret (1 API call)</button>
+      )}
+      {err && <div className="auth-err">{err}</div>}
+      {reading && <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reading}</div>}
+      <div className="hud" style={{ marginTop: '0.7rem' }}>SYMBOLIC \u00b7 INTERPRETIVE \u00b7 NOT PREDICTION</div>
+    </div>
+  )
+}
+
 const AI_MODES = {
   kundli: {
     label: 'KUNDLI',
@@ -296,6 +438,8 @@ export default function Oracle() {
         <div className="grid">
           <DailyTarot uid={uid} />
           <Spread hasKey={hasKey} />
+          <CelticCross hasKey={hasKey} />
+          <PhotoScan hasKey={hasKey} />
         </div>
       )}
       {uid && tab === 'numerology' && <Numerology persons={persons} />}

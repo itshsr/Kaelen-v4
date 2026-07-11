@@ -33,7 +33,7 @@ export async function geminiChat({ system, messages, signal }) {
         system_instruction: { parts: [{ text: system }] },
         contents: messages.map(m => ({
           role: m.role === 'assistant' ? 'model' : 'user',
-          parts: [{ text: m.content }],
+          parts: buildParts(m),
         })),
       }),
     },
@@ -48,4 +48,12 @@ export async function geminiChat({ system, messages, signal }) {
   const text = data?.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || ''
   if (!text) throw new Error('Empty response from model.')
   return text
+}
+
+// message may optionally carry { image: { mimeType, base64 } } for multimodal (vision) calls.
+function buildParts(m) {
+  const parts = []
+  if (m.image) parts.push({ inline_data: { mime_type: m.image.mimeType, data: m.image.base64 } })
+  parts.push({ text: m.content })
+  return parts
 }

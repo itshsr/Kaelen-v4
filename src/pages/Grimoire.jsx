@@ -165,6 +165,132 @@ function Notes({ uid }) {
   )
 }
 
+function Ebooks({ uid }) {
+  const [books, setBooks] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const [err, setErr] = useState('')
+  const [open, setOpen] = useState(null) // book being annotated
+  const [quote, setQuote] = useState('')
+  const [page, setPage] = useState('')
+  const [highlights, setHighlights] = useState([])
+
+  const load = async () => {
+    const { data, error } = await supabase.from('ebooks').select('*').order('created_at', { ascending: false })
+    if (error) setErr(error.message)
+    setBooks(data || [])
+  }
+  useEffect(() => { if (uid) load() }, [uid])
+
+  const upload = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setErr(''); setUploading(true)
+    try {
+      const ext = file.name.split('.').pop()
+      const path = `${uid}/${Date.now()}.${ext}`
+      const { error: upErr } = await supabase.storage.from('ebooks').upload(path, file)
+      if (upErr) throw upErr
+      const { data: urlData } = supabase.storage.from('ebooks').getPublicUrl(path)
+      const { error: insErr } = await supabase.from('ebooks').insert({
+        user_id: uid, title: file.name.replace(/\.[^.]+$/, ''), file_url: urlData.publicUrl,
+        file_type: ext?.toLowerCase() === 'epub' ? 'epub' : 'pdf',
+      })
+      if (insErr) throw insErr
+      load()
+    } catch (e2) { setErr(e2.message) } finally { setUploading(false) }
+  }
+
+  const del = async id => {
+    setErr('')
+    const { error } = await supabase.from('ebooks').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
+
+  const setProgress = async (book, current_page) => {
+    setErr('')
+    const { error } = await supabase.from('ebooks').update({ current_page }).eq('id', book.id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
+
+  const openBook = async book => {
+    setOpen(book)
+    const { data } = await supabase.from('ebook_highlights').select('*').eq('ebook_id', book.id).order('created_at', { ascending: false })
+    setHighlights(data || [])
+  }
+
+  const addHighlight = async () => {
+    if (!quote.trim()) return
+    setErr('')
+    const { error } = await supabase.from('ebook_highlights').insert({
+      user_id: uid, ebook_id: open.id, quote: quote.trim(), page: page ? parseInt(page) : null,
+    })
+    if (error) { setErr(error.message); return }
+    setQuote(''); setPage(''); openBook(open)
+  }
+
+  if (open) {
+    return (
+      <div className="panel grid">
+        <div className="row between">
+          <span className="item-title" style={{ fontWeight: 600 }}>{open.title}</span>
+          <button className="btn-ghost" onClick={() => setOpen(null)}>Back</button>
+        </div>
+        <a className="btn-ghost" style={{ textDecoration: 'none', display: 'inline-block', width: 'fit-content' }}
+          href={open.file_url} target="_blank" rel="noreferrer">Open file →</a>
+        <div className="row">
+          <label className="hud">Current page</label>
+          <input className="input" type="number" min="0" style={{ width: 100 }}
+            defaultValue={open.current_page || 0}
+            onBlur={e => setProgress(open, parseInt(e.target.value) || 0)} />
+        </div>
+        {err && <div className="auth-err">{err}</div>}
+        <div className="row wrap">
+          <input className="input" placeholder="Highlight / quote" style={{ flex: 2, minWidth: 140 }} value={quote} onChange={e => setQuote(e.target.value)} />
+          <input className="input" type="number" placeholder="Page" style={{ flex: 1, minWidth: 80 }} value={page} onChange={e => setPage(e.target.value)} />
+          <button className="btn-sm" onClick={addHighlight}>Save</button>
+        </div>
+        <div className="list">
+          {highlights.length === 0 && <div className="empty">No highlights yet.</div>}
+          {highlights.map(h => (
+            <div className="item" key={h.id}>
+              <div style={{ flex: 1 }}>
+                <div className="item-title">{h.quote}</div>
+                {h.page != null && <div className="item-sub">page {h.page}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="panel">
+      <div className="row" style={{ marginBottom: '0.9rem' }}>
+        <label className="btn-sm" style={{ cursor: 'pointer' }}>
+          {uploading ? 'Uploading…' : 'Upload PDF/EPUB'}
+          <input type="file" accept=".pdf,.epub" style={{ display: 'none' }} onChange={upload} disabled={uploading} />
+        </label>
+      </div>
+      {err && <div className="auth-err">{err}</div>}
+      <div className="list">
+        {books.length === 0 && <div className="empty">No books yet.</div>}
+        {books.map(b => (
+          <div className="item" key={b.id}>
+            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => openBook(b)}>
+              <div className="item-title" style={{ fontWeight: 600 }}>{b.title}</div>
+              <div className="item-sub">{b.file_type.toUpperCase()} · page {b.current_page || 0}</div>
+            </div>
+            <button className="btn-ghost danger" onClick={() => del(b.id)}>✕</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function Grimoire() {
   const [uid, setUid] = useState(null)
   const [tab, setTab] = useState('notes')
@@ -176,12 +302,13 @@ export default function Grimoire() {
         <span className="hud">05 — LORE · LIVE</span>
       </div>
       <div className="tabs">
-        {['notes', 'habits'].map(t => (
+        {['notes', 'habits', 'ebooks'].map(t => (
           <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t.toUpperCase()}</button>
         ))}
       </div>
       {uid && tab === 'notes' && <Notes uid={uid} />}
       {uid && tab === 'habits' && <Habits uid={uid} />}
+      {uid && tab === 'ebooks' && <Ebooks uid={uid} />}
     </>
   )
 }
