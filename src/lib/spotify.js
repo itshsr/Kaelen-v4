@@ -10,6 +10,14 @@ const CLIENT_ID = '1b9f5a805228469b8a800eb19b5bc2ee'
 const REDIRECT_URI = 'https://kaelen-v4.vercel.app/spotify-callback'
 const SCOPES = 'user-read-currently-playing user-read-playback-state user-modify-playback-state'
 
+const b64url = buf => btoa(String.fromCharCode(...new Uint8Array(buf)))
+  .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+
+async function sha256(input) {
+  const data = new TextEncoder().encode(input)
+  return await crypto.subtle.digest('SHA-256', data)
+}
+
 function randomString(len = 64) {
   const arr = new Uint8Array(len)
   crypto.getRandomValues(arr)
@@ -19,17 +27,14 @@ function randomString(len = 64) {
 export async function startSpotifyAuth() {
   const verifier = randomString(64)
   localStorage.setItem('spotify_verifier', verifier)
-  // Using PKCE "plain" method: code_challenge == code_verifier directly.
-  // Spotify supports this; it removes the SHA-256/base64url encoding step
-  // as a possible failure point ("code_verifier was invalid" errors).
-  const challenge = verifier
+  const challenge = b64url(await sha256(verifier))
 
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
     response_type: 'code',
     redirect_uri: REDIRECT_URI,
     scope: SCOPES,
-    code_challenge_method: 'plain',
+    code_challenge_method: 'S256',
     code_challenge: challenge,
   })
   window.location.href = `https://accounts.spotify.com/authorize?${params}`
