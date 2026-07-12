@@ -35,6 +35,7 @@ export default function SpotifyCard() {
       setErr('')
     } catch (e) {
       if (e.message === 'NOT_CONNECTED') setConnected(false)
+      else setErr(e.message)
     }
   }
 
@@ -47,7 +48,11 @@ export default function SpotifyCard() {
   const act = async fn => {
     setBusy(true); setErr('')
     try { await fn(); setTimeout(poll, 400) }
-    catch (e) { setErr(e.message === 'NOT_CONNECTED' ? 'Spotify not connected.' : e.message) }
+    catch (e) {
+      if (e.message === 'NOT_CONNECTED') setErr('Spotify not connected.')
+      else if (/restriction violated|no active device/i.test(e.message)) setErr('No active Spotify device found — open Spotify on your phone or computer first, then try again.')
+      else setErr(e.message)
+    }
     finally { setBusy(false) }
   }
 

@@ -128,13 +128,18 @@ async function api(path, options = {}) {
   })
   if (res.status === 204 || res.status === 202) return null
   if (res.status === 404) return null // no active device
+
+  const text = await res.text()
+  let parsed = null
+  if (text) {
+    try { parsed = JSON.parse(text) } catch { /* body wasn't JSON — handled below */ }
+  }
+
   if (!res.ok) {
-    let msg = `Spotify error ${res.status}`
-    try { msg = (await res.json())?.error?.message || msg } catch { /* keep default */ }
+    const msg = parsed?.error?.message || (text ? text.slice(0, 200) : `Spotify error ${res.status}`)
     throw new Error(msg)
   }
-  const text = await res.text()
-  return text ? JSON.parse(text) : null
+  return parsed
 }
 
 export const spotifyNowPlaying = () => api('/me/player/currently-playing')
