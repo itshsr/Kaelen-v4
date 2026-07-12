@@ -32,7 +32,8 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       return
     }
     supabase.storage.from('ebooks').createSignedUrl(book.file_path, 3600).then(async ({ data, error }) => {
-      if (error) { if (!cancelled) setErr(error.message); return }
+      if (error) { if (!cancelled) setErr('Could not get file access: ' + error.message); return }
+      if (!data?.signedUrl) { if (!cancelled) setErr(`Storage returned no signed URL for path "${book.file_path}". The file may not exist at that location.`); return }
       try {
         const doc = await pdfjsLib.getDocument(data.signedUrl).promise
         if (cancelled) return

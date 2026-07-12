@@ -36,12 +36,17 @@ export async function startSpotifyAuth() {
     scope: SCOPES,
     code_challenge_method: 'S256',
     code_challenge: challenge,
+    // Verifier is also round-tripped via `state` — some mobile browsers/OS
+    // hand the login off to the Spotify app itself, which can return to a
+    // browser context that doesn't share localStorage with the tab that
+    // started the flow. `state` survives that regardless.
+    state: verifier,
   })
   window.location.href = `https://accounts.spotify.com/authorize?${params}`
 }
 
-export async function handleSpotifyCallback(code) {
-  const verifier = localStorage.getItem('spotify_verifier')
+export async function handleSpotifyCallback(code, state) {
+  const verifier = state || localStorage.getItem('spotify_verifier')
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

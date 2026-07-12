@@ -9,10 +9,11 @@ export default function SpotifyCallback() {
 
   useEffect(() => {
     const code = params.get('code')
+    const state = params.get('state')
     const error = params.get('error')
     if (error) { setErr(error); return }
     if (!code) { setErr('No authorization code received.'); return }
-    handleSpotifyCallback(code)
+    handleSpotifyCallback(code, state)
       .then(() => nav('/', { replace: true }))
       .catch(e => setErr(e.message))
   }, []) // eslint-disable-line
