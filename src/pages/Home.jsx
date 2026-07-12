@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
-import { useHabits } from './Grimoire'
+import { useHabits } from '../lib/useHabits'
 import SpotifyCard from '../components/SpotifyCard'
 
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })

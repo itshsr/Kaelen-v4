@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useSupabaseTable } from '../lib/useSupabaseTable'
 
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const DEFAULT_CATS = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Other']
@@ -190,32 +191,27 @@ function Cards({ uid, cards, spentByCard, onChange }) {
 }
 
 function Subs({ uid, cards }) {
-  const [subs, setSubs] = useState([])
+  const { rows: subs, insert, update, remove } = useSupabaseTable('subscriptions', {
+    orderBy: { column: 'created_at', ascending: false },
+    enabled: !!uid,
+  })
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('')
 
-  const load = async () => {
-    const { data } = await supabase.from('subscriptions').select('*').order('created_at', { ascending: false })
-    setSubs(data || [])
-  }
-  useEffect(() => { if (uid) load() }, [uid])
-
   const add = async () => {
     if (!name.trim()) return
     const isCard = method && method !== 'UPI' && method !== 'Cash'
-    await supabase.from('subscriptions').insert({
+    await insert({
       user_id: uid, name: name.trim(), amount: parseFloat(amount) || 0,
       card_id: isCard ? method : null,
       payment_method: isCard ? null : (method || null),
     })
-    setName(''); setAmount(''); load()
+    setName(''); setAmount('')
   }
-  const setPaid = async (s, paid) => { await supabase.from('subscriptions').update({ paid_this_month: paid }).eq('id', s.id); load() }
-  const togglePause = async s => {
-    await supabase.from('subscriptions').update({ status: s.status === 'active' ? 'paused' : 'active' }).eq('id', s.id); load()
-  }
-  const del = async id => { await supabase.from('subscriptions').delete().eq('id', id); load() }
+  const setPaid = (s, paid) => update(s.id, { paid_this_month: paid })
+  const togglePause = s => update(s.id, { status: s.status === 'active' ? 'paused' : 'active' })
+  const del = id => remove(id)
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
   const payLabel = s => s.card_id ? cardLabel(s.card_id) : (s.payment_method || 'No card')
 

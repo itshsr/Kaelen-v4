@@ -1,66 +1,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useSupabaseTable } from '../lib/useSupabaseTable'
+import { useHabits } from '../lib/useHabits'
 import PdfReader from '../components/PdfReader'
 
 const today = () => new Date().toISOString().slice(0, 10)
-
-export function useHabits(uid) {
-  const [habits, setHabits] = useState([])
-  const [doneToday, setDoneToday] = useState(new Set())
-  const [streaks, setStreaks] = useState({})
-  const [err, setErr] = useState('')
-
-  const load = async () => {
-    const [{ data: h, error: he }, { data: c, error: ce }] = await Promise.all([
-      supabase.from('habits').select('*').order('created_at'),
-      supabase.from('habit_completions').select('habit_id,completed_on').order('completed_on', { ascending: false }),
-    ])
-    if (he || ce) { setErr((he || ce).message) }
-    setHabits(h || [])
-    const t = today()
-    setDoneToday(new Set((c || []).filter(x => x.completed_on === t).map(x => x.habit_id)))
-    const byHabit = {}
-    ;(c || []).forEach(x => { (byHabit[x.habit_id] ||= new Set()).add(x.completed_on) })
-    const s = {}
-    ;(h || []).forEach(hb => {
-      const days = byHabit[hb.id] || new Set()
-      let streak = 0
-      const d = new Date()
-      if (!days.has(d.toISOString().slice(0, 10))) d.setDate(d.getDate() - 1)
-      while (days.has(d.toISOString().slice(0, 10))) { streak++; d.setDate(d.getDate() - 1) }
-      s[hb.id] = streak
-    })
-    setStreaks(s)
-  }
-  useEffect(() => { if (uid) load() }, [uid]) // eslint-disable-line
-
-  const toggle = async habitId => {
-    setErr('')
-    let error
-    if (doneToday.has(habitId)) {
-      ;({ error } = await supabase.from('habit_completions').delete().eq('habit_id', habitId).eq('completed_on', today()))
-    } else {
-      ;({ error } = await supabase.from('habit_completions').insert({ user_id: uid, habit_id: habitId, completed_on: today() }))
-    }
-    if (error) { setErr(error.message); return }
-    load()
-  }
-  const add = async name => {
-    setErr('')
-    if (!name.trim()) return
-    const { error } = await supabase.from('habits').insert({ user_id: uid, name: name.trim() })
-    if (error) { setErr(error.message); return }
-    load()
-  }
-  const remove = async id => {
-    setErr('')
-    const { error } = await supabase.from('habits').delete().eq('id', id)
-    if (error) { setErr(error.message); return }
-    load()
-  }
-
-  return { habits, doneToday, streaks, toggle, add, remove, err }
-}
 
 function Habits({ uid }) {
   const { habits, doneToday, streaks, toggle, add, remove, err } = useHabits(uid)
@@ -93,37 +37,27 @@ function Habits({ uid }) {
 }
 
 function Notes({ uid }) {
-  const [notes, setNotes] = useState([])
+  const { rows: notes, err, insert, update, remove } = useSupabaseTable('notes', {
+    orderBy: { column: 'updated_at', ascending: false },
+    enabled: !!uid,
+  })
   const [q, setQ] = useState('')
   const [editing, setEditing] = useState(null) // null | 'new' | note object
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [err, setErr] = useState('')
 
-  const load = async () => {
-    const { data, error } = await supabase.from('notes').select('*').order('updated_at', { ascending: false })
-    if (error) setErr(error.message)
-    setNotes(data || [])
-  }
-  useEffect(() => { if (uid) load() }, [uid])
-
-  const openNew = () => { setEditing('new'); setTitle(''); setContent(''); setErr('') }
-  const openEdit = n => { setEditing(n); setTitle(n.title); setContent(n.content || ''); setErr('') }
+  const openNew = () => { setEditing('new'); setTitle(''); setContent('') }
+  const openEdit = n => { setEditing(n); setTitle(n.title); setContent(n.content || '') }
   const save = async () => {
-    setErr('')
     if (!title.trim()) return
-    const query = editing === 'new'
-      ? supabase.from('notes').insert({ user_id: uid, title: title.trim(), content })
-      : supabase.from('notes').update({ title: title.trim(), content, updated_at: new Date().toISOString() }).eq('id', editing.id)
-    const { error } = await query
-    if (error) { setErr(error.message); return }
-    setEditing(null); load()
+    const result = editing === 'new'
+      ? await insert({ user_id: uid, title: title.trim(), content })
+      : await update(editing.id, { title: title.trim(), content, updated_at: new Date().toISOString() })
+    if (!result.error) setEditing(null)
   }
   const del = async id => {
-    setErr('')
-    const { error } = await supabase.from('notes').delete().eq('id', id)
-    if (error) { setErr(error.message); return }
-    setEditing(null); load()
+    const result = await remove(id)
+    if (!result.error) setEditing(null)
   }
 
   const filtered = notes.filter(n =>
@@ -167,22 +101,18 @@ function Notes({ uid }) {
 }
 
 function Ebooks({ uid }) {
-  const [books, setBooks] = useState([])
+  const { rows: books, err, reload, remove, update } = useSupabaseTable('ebooks', {
+    orderBy: { column: 'created_at', ascending: false },
+    enabled: !!uid,
+  })
   const [uploading, setUploading] = useState(false)
-  const [err, setErr] = useState('')
+  const [uploadErr, setUploadErr] = useState('')
   const [open, setOpen] = useState(null) // book being read
-
-  const load = async () => {
-    const { data, error } = await supabase.from('ebooks').select('*').order('created_at', { ascending: false })
-    if (error) setErr(error.message)
-    setBooks(data || [])
-  }
-  useEffect(() => { if (uid) load() }, [uid])
 
   const upload = async e => {
     const file = e.target.files?.[0]
     if (!file) return
-    setErr(''); setUploading(true)
+    setUploadErr(''); setUploading(true)
     try {
       const ext = file.name.split('.').pop()
       const path = `${uid}/${Date.now()}.${ext}`
@@ -195,21 +125,13 @@ function Ebooks({ uid }) {
         file_type: ext?.toLowerCase() === 'epub' ? 'epub' : 'pdf',
       })
       if (insErr) throw insErr
-      load()
-    } catch (e2) { setErr(e2.message) } finally { setUploading(false) }
+      reload()
+    } catch (e2) { setUploadErr(e2.message) } finally { setUploading(false) }
   }
 
-  const del = async id => {
-    setErr('')
-    const { error } = await supabase.from('ebooks').delete().eq('id', id)
-    if (error) { setErr(error.message); return }
-    load()
-  }
+  const del = id => remove(id)
 
-  const saveProgress = async (book, current_page) => {
-    await supabase.from('ebooks').update({ current_page }).eq('id', book.id)
-    setBooks(bs => bs.map(b => b.id === book.id ? { ...b, current_page } : b))
-  }
+  const saveProgress = (book, current_page) => update(book.id, { current_page })
 
   if (open) {
     if (open.file_type === 'epub') {
@@ -239,7 +161,7 @@ function Ebooks({ uid }) {
           <input type="file" accept=".pdf,.epub" style={{ display: 'none' }} onChange={upload} disabled={uploading} />
         </label>
       </div>
-      {err && <div className="auth-err">{err}</div>}
+      {(err || uploadErr) && <div className="auth-err">{uploadErr || err}</div>}
       <div className="list">
         {books.length === 0 && <div className="empty">No books yet.</div>}
         {books.map(b => (

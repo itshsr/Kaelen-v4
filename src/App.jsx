@@ -1,16 +1,23 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Home from './pages/Home'
-import Forge from './pages/Forge'
-import Vault from './pages/Vault'
-import Grimoire from './pages/Grimoire'
-import User from './pages/User'
-import SpotifyCallback from './pages/SpotifyCallback'
-import Core from './pages/Core'
-import Oracle from './pages/Oracle'
 import GalaxyBackground from './components/GalaxyBackground'
+
+// Route-level code splitting — each page's JS only downloads when actually
+// visited, instead of every page loading on first paint regardless of use.
+const Forge = lazy(() => import('./pages/Forge'))
+const Vault = lazy(() => import('./pages/Vault'))
+const Grimoire = lazy(() => import('./pages/Grimoire'))
+const User = lazy(() => import('./pages/User'))
+const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'))
+const Core = lazy(() => import('./pages/Core'))
+const Oracle = lazy(() => import('./pages/Oracle'))
+
+function RouteFallback() {
+  return <div className="panel placeholder"><span className="hud">LOADING…</span></div>
+}
 
 const SECTIONS = [
   { path: '/', label: 'HOME' },
@@ -91,17 +98,19 @@ export default function App() {
         </header>
 
         <main className="main">
-          <Routes>
-            <Route path="/" element={<Home profileName={profileName} />} />
-            <Route path="/core" element={<Core profileName={profileName} />} />
-            <Route path="/forge" element={<Forge />} />
-            <Route path="/oracle" element={<Oracle />} />
-            <Route path="/grimoire" element={<Grimoire />} />
-            <Route path="/vault" element={<Vault />} />
-            <Route path="/user" element={<User />} />
-            <Route path="/spotify-callback" element={<SpotifyCallback />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
+          <Suspense fallback={<RouteFallback />}>
+            <Routes>
+              <Route path="/" element={<Home profileName={profileName} />} />
+              <Route path="/core" element={<Core profileName={profileName} />} />
+              <Route path="/forge" element={<Forge />} />
+              <Route path="/oracle" element={<Oracle />} />
+              <Route path="/grimoire" element={<Grimoire />} />
+              <Route path="/vault" element={<Vault />} />
+              <Route path="/user" element={<User />} />
+              <Route path="/spotify-callback" element={<SpotifyCallback />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </main>
 
         <nav className="nav">

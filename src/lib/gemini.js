@@ -8,8 +8,9 @@ const MODEL = 'gemini-2.5-flash'
 export async function getApiKey() {
   const { data: u } = await supabase.auth.getUser()
   if (!u.user) return null
-  const { data } = await supabase.from('profiles').select('gemini_api_key').eq('id', u.user.id).single()
-  return data?.gemini_api_key || null
+  const { data, error } = await supabase.rpc('get_gemini_key')
+  if (error) return null
+  return data || null
 }
 
 // Shared integrity instruction — inherited by every AI feature. Single source (spec §6.3).

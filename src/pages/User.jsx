@@ -207,13 +207,13 @@ function ApiKey({ uid }) {
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    supabase.from('profiles').select('gemini_api_key').eq('id', uid).single().then(({ data }) => {
-      if (data?.gemini_api_key) { setKey(data.gemini_api_key); setActive(true) }
+    supabase.rpc('get_gemini_key').then(({ data }) => {
+      if (data) { setKey(data); setActive(true) }
     })
   }, [uid])
 
   const save = async () => {
-    const { error } = await supabase.from('profiles').update({ gemini_api_key: key.trim() || null }).eq('id', uid)
+    const { error } = await supabase.rpc('set_gemini_key', { p_key: key.trim() || null })
     if (!error) {
       setActive(!!key.trim()); setSaved(true); setTimeout(() => setSaved(false), 2000)
     }

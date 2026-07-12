@@ -2,7 +2,7 @@ import { supabase } from './supabase'
 
 // Spotify Web API — Authorization Code + PKCE flow (public client, no secret required).
 // Requires Spotify Premium for playback control endpoints.
-const CLIENT_ID = '1b9f5a805228469b8a800eb19b5bc2ee'
+const CLIENT_ID = import.meta.env.VITE_SPOTIFY_CLIENT_ID || '1b9f5a805228469b8a800eb19b5bc2ee'
 // Hardcoded to the stable production domain — Vercel preview URLs (per-deploy hashes)
 // will never match what's registered in the Spotify dashboard, so this must NOT be
 // derived from window.location.origin. Always access KAELEN via this domain for
@@ -66,18 +66,17 @@ export async function handleSpotifyCallback(code, state) {
   }
   const data = await res.json()
 
-  const { data: u } = await supabase.auth.getUser()
-  await supabase.from('profiles').update({
-    spotify_access_token: data.access_token,
-    spotify_refresh_token: data.refresh_token,
-    spotify_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-  }).eq('id', u.user.id)
+  await supabase.rpc('set_spotify_tokens', {
+    p_access: data.access_token,
+    p_refresh: data.refresh_token,
+    p_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+  })
 
   localStorage.removeItem('spotify_verifier')
   return data.access_token
 }
 
-async function refreshToken(refresh_token, uid) {
+async function refreshToken(refresh_token) {
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -89,34 +88,30 @@ async function refreshToken(refresh_token, uid) {
   })
   if (!res.ok) throw new Error('Spotify token refresh failed')
   const data = await res.json()
-  await supabase.from('profiles').update({
-    spotify_access_token: data.access_token,
-    spotify_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
-    ...(data.refresh_token ? { spotify_refresh_token: data.refresh_token } : {}),
-  }).eq('id', uid)
+  await supabase.rpc('set_spotify_tokens', {
+    p_access: data.access_token,
+    p_refresh: data.refresh_token || null,
+    p_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
+  })
   return data.access_token
 }
 
 export async function getSpotifyToken() {
   const { data: u } = await supabase.auth.getUser()
   if (!u.user) return null
-  const { data: p } = await supabase.from('profiles')
-    .select('spotify_access_token, spotify_refresh_token, spotify_token_expires_at')
-    .eq('id', u.user.id).single()
-  if (!p?.spotify_access_token) return null
-  const expiresAt = p.spotify_token_expires_at ? new Date(p.spotify_token_expires_at).getTime() : 0
+  const { data: rows } = await supabase.rpc('get_spotify_tokens')
+  const p = rows?.[0]
+  if (!p?.access_token) return null
+  const expiresAt = p.expires_at ? new Date(p.expires_at).getTime() : 0
   if (Date.now() > expiresAt - 30000) {
-    if (!p.spotify_refresh_token) return null
-    return await refreshToken(p.spotify_refresh_token, u.user.id)
+    if (!p.refresh_token) return null
+    return await refreshToken(p.refresh_token)
   }
-  return p.spotify_access_token
+  return p.access_token
 }
 
 export async function disconnectSpotify() {
-  const { data: u } = await supabase.auth.getUser()
-  await supabase.from('profiles').update({
-    spotify_access_token: null, spotify_refresh_token: null, spotify_token_expires_at: null,
-  }).eq('id', u.user.id)
+  await supabase.rpc('clear_spotify_tokens')
 }
 
 async function api(path, options = {}) {
