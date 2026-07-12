@@ -26,6 +26,11 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
   useEffect(() => {
     let cancelled = false
     setLoading(true); setErr('')
+    if (!book.file_path) {
+      setErr('This file was uploaded before file storage was fixed and can no longer be located. Please remove it and re-upload — sorry for the inconvenience.')
+      setLoading(false)
+      return
+    }
     supabase.storage.from('ebooks').createSignedUrl(book.file_path, 3600).then(async ({ data, error }) => {
       if (error) { if (!cancelled) setErr(error.message); return }
       try {
