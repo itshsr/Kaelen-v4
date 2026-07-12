@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSupabaseTable } from '../lib/useSupabaseTable'
+import {
+  parseCsvFile, guessColumn, parseAmount, parseDate,
+  DATE_CANDIDATES, AMOUNT_CANDIDATES, CREDIT_CANDIDATES, DESC_CANDIDATES,
+  parseExpenseLines, parseCardLines, parseSubLines,
+} from '../lib/importHelpers'
 
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })
 const DEFAULT_CATS = ['Food', 'Transport', 'Shopping', 'Bills', 'Health', 'Other']
@@ -12,6 +17,171 @@ function useUid() {
   return uid
 }
 
+function ImportExpenses({ uid, cards, onDone, onClose }) {
+  const [mode, setMode] = useState('paste') // paste | csv
+  const [pasteText, setPasteText] = useState('')
+  const [file, setFile] = useState(null)
+  const [headers, setHeaders] = useState([])
+  const [csvRows, setCsvRows] = useState([])
+  const [dateCol, setDateCol] = useState('')
+  const [amountCol, setAmountCol] = useState('')
+  const [creditCol, setCreditCol] = useState('')
+  const [descCol, setDescCol] = useState('')
+  const [skipCredits, setSkipCredits] = useState(true)
+  const [method, setMethod] = useState('Cash')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const onPickFile = async e => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setErr(''); setFile(f)
+    try {
+      const { headers: h, rows } = await parseCsvFile(f)
+      setHeaders(h); setCsvRows(rows)
+      setDateCol(guessColumn(h, DATE_CANDIDATES))
+      setAmountCol(guessColumn(h, AMOUNT_CANDIDATES))
+      setCreditCol(guessColumn(h, CREDIT_CANDIDATES))
+      setDescCol(guessColumn(h, DESC_CANDIDATES))
+    } catch (e2) { setErr('Could not read this file: ' + e2.message) }
+  }
+
+  const csvPreview = useMemo(() => {
+    if (mode !== 'csv' || !amountCol) return []
+    return csvRows.map(r => {
+      const debit = parseAmount(r[amountCol])
+      const credit = creditCol ? parseAmount(r[creditCol]) : NaN
+      const isCredit = !isNaN(credit) && credit > 0 && (isNaN(debit) || debit <= 0)
+      return {
+        amount: isCredit ? credit : debit,
+        isCredit,
+        spent_on: parseDate(r[dateCol]),
+        note: descCol ? String(r[descCol] || '').slice(0, 200) : null,
+      }
+    }).filter(r => !isNaN(r.amount) && r.amount > 0)
+  }, [mode, csvRows, amountCol, creditCol, dateCol, descCol])
+
+  const pastePreview = useMemo(() => mode === 'paste' ? parseExpenseLines(pasteText) : [], [mode, pasteText])
+
+  const finalRows = mode === 'paste'
+    ? pastePreview
+    : csvPreview.filter(r => !skipCredits || !r.isCredit)
+
+  const isCard = method !== 'Cash' && method !== 'UPI'
+
+  const doImport = async () => {
+    if (finalRows.length === 0) return
+    setBusy(true); setErr('')
+    const payload = finalRows.map(r => ({
+      user_id: uid,
+      amount: r.amount,
+      category: r.category || 'Other',
+      note: r.note || null,
+      spent_on: r.spent_on || new Date().toISOString().slice(0, 10),
+      payment_method: isCard ? 'Card' : method,
+      card_id: isCard ? method : null,
+    }))
+    const { error } = await supabase.from('expenses').insert(payload)
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    onDone()
+  }
+
+  return (
+    <div className="panel grid">
+      <div className="row between">
+        <span className="hud">IMPORT EXPENSES</span>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+      </div>
+      <div className="tabs" style={{ margin: 0 }}>
+        <button className={`tab ${mode === 'paste' ? 'on' : ''}`} onClick={() => setMode('paste')}>PASTE LIST</button>
+        <button className={`tab ${mode === 'csv' ? 'on' : ''}`} onClick={() => setMode('csv')}>UPLOAD CSV</button>
+      </div>
+
+      {mode === 'paste' && (
+        <>
+          <span className="hud">ONE PER LINE: AMOUNT, CATEGORY, NOTE</span>
+          <textarea className="input" rows={6} placeholder={'450, Food, lunch\n1200, Transport'}
+            value={pasteText} onChange={e => setPasteText(e.target.value)} />
+        </>
+      )}
+
+      {mode === 'csv' && (
+        <>
+          <label className="btn-ghost" style={{ cursor: 'pointer', width: 'fit-content' }}>
+            {file ? file.name : 'Choose CSV file'}
+            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={onPickFile} />
+          </label>
+          {headers.length > 0 && (
+            <>
+              <div className="grid cols2">
+                <div className="field"><label className="hud">Date column</label>
+                  <select className="input" value={dateCol} onChange={e => setDateCol(e.target.value)}>
+                    <option value="">(none — use today)</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="field"><label className="hud">Amount / debit column</label>
+                  <select className="input" value={amountCol} onChange={e => setAmountCol(e.target.value)}>
+                    <option value="">— select —</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="field"><label className="hud">Credit / deposit column</label>
+                  <select className="input" value={creditCol} onChange={e => setCreditCol(e.target.value)}>
+                    <option value="">(none)</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+                <div className="field"><label className="hud">Description column</label>
+                  <select className="input" value={descCol} onChange={e => setDescCol(e.target.value)}>
+                    <option value="">(none)</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              </div>
+              {creditCol && (
+                <label className="row" style={{ fontSize: '0.85rem', gap: '0.5rem' }}>
+                  <input type="checkbox" checked={skipCredits} onChange={e => setSkipCredits(e.target.checked)} />
+                  Skip deposits/credits (only import spending)
+                </label>
+              )}
+            </>
+          )}
+        </>
+      )}
+
+      {finalRows.length > 0 && (
+        <>
+          <span className="hud">{finalRows.length} ROWS READY \u00b7 PREVIEW FIRST 5</span>
+          <div className="list">
+            {finalRows.slice(0, 5).map((r, i) => (
+              <div className="item" key={i}>
+                <div className="item-title">{inr(r.amount)}{r.category ? ` \u00b7 ${r.category}` : ''}</div>
+                <div className="item-sub">{r.spent_on || 'today'}{r.note ? ` \u00b7 ${r.note}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="row wrap">
+        <label className="hud">Import as</label>
+        <select className="input" style={{ width: 'auto' }} value={method} onChange={e => setMethod(e.target.value)}>
+          <option>Cash</option>
+          <option value="UPI">UPI</option>
+          {cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+      </div>
+
+      {err && <div className="auth-err">{err}</div>}
+      <button className="btn-sm" onClick={doImport} disabled={busy || finalRows.length === 0}>
+        {busy ? 'Importing\u2026' : `Import ${finalRows.length || ''} expense${finalRows.length === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  )
+}
+
 function Expenses({ uid, cards, reload, onLogged }) {
   const [expenses, setExpenses] = useState([])
   const [amount, setAmount] = useState('')
@@ -20,6 +190,7 @@ function Expenses({ uid, cards, reload, onLogged }) {
   const [note, setNote] = useState('')
   const [method, setMethod] = useState('Cash')
   const [err, setErr] = useState('')
+  const [showImport, setShowImport] = useState(false)
 
   const load = async () => {
     const { data } = await supabase.from('expenses').select('*')
@@ -49,8 +220,17 @@ function Expenses({ uid, cards, reload, onLogged }) {
   }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
 
+  if (showImport) {
+    return <ImportExpenses uid={uid} cards={cards} onClose={() => setShowImport(false)}
+      onDone={() => { setShowImport(false); load(); onLogged?.() }} />
+  }
+
   return (
     <div className="panel">
+      <div className="row between" style={{ marginBottom: '0.7rem' }}>
+        <span className="hud">LOG EXPENSE</span>
+        <button className="btn-ghost" onClick={() => setShowImport(true)}>Import</button>
+      </div>
       <div className="grid" style={{ marginBottom: '0.9rem' }}>
         <div className="row wrap">
           <input className="input" type="number" min="0" step="0.01" placeholder="Amount (₹)" style={{ flex: 1, minWidth: 110 }}
@@ -148,9 +328,109 @@ function Budget({ uid, reload }) {
   )
 }
 
+function SimpleImport({ title, uid, table, rowFields, parseLines, extraFields, buildPayload, onDone, onClose }) {
+  const [mode, setMode] = useState('paste')
+  const [pasteText, setPasteText] = useState('')
+  const [file, setFile] = useState(null)
+  const [headers, setHeaders] = useState([])
+  const [csvRows, setCsvRows] = useState([])
+  const [colMap, setColMap] = useState({})
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  const onPickFile = async e => {
+    const f = e.target.files?.[0]
+    if (!f) return
+    setErr(''); setFile(f)
+    try {
+      const { headers: h, rows } = await parseCsvFile(f)
+      setHeaders(h); setCsvRows(rows)
+      const guessed = {}
+      rowFields.forEach(f2 => { guessed[f2.key] = guessColumn(h, f2.candidates) })
+      setColMap(guessed)
+    } catch (e2) { setErr('Could not read this file: ' + e2.message) }
+  }
+
+  const csvPreview = useMemo(() => {
+    if (mode !== 'csv') return []
+    return csvRows.map(r => {
+      const out = {}
+      rowFields.forEach(f2 => { out[f2.key] = f2.numeric ? (parseAmount(r[colMap[f2.key]]) || 0) : String(r[colMap[f2.key]] || '').trim() })
+      return out
+    }).filter(r => rowFields.every(f2 => !f2.required || r[f2.key]))
+  }, [mode, csvRows, colMap]) // eslint-disable-line
+
+  const pastePreview = useMemo(() => mode === 'paste' ? parseLines(pasteText) : [], [mode, pasteText])
+  const finalRows = mode === 'paste' ? pastePreview : csvPreview
+
+  const doImport = async () => {
+    if (finalRows.length === 0) return
+    setBusy(true); setErr('')
+    const payload = finalRows.map(r => buildPayload(r, uid))
+    const { error } = await supabase.from(table).insert(payload)
+    setBusy(false)
+    if (error) { setErr(error.message); return }
+    onDone()
+  }
+
+  return (
+    <div className="panel grid">
+      <div className="row between">
+        <span className="hud">{title}</span>
+        <button className="btn-ghost" onClick={onClose}>Cancel</button>
+      </div>
+      <div className="tabs" style={{ margin: 0 }}>
+        <button className={`tab ${mode === 'paste' ? 'on' : ''}`} onClick={() => setMode('paste')}>PASTE LIST</button>
+        <button className={`tab ${mode === 'csv' ? 'on' : ''}`} onClick={() => setMode('csv')}>UPLOAD CSV</button>
+      </div>
+      {mode === 'paste' && (
+        <>
+          <span className="hud">{extraFields}</span>
+          <textarea className="input" rows={6} value={pasteText} onChange={e => setPasteText(e.target.value)} />
+        </>
+      )}
+      {mode === 'csv' && (
+        <>
+          <label className="btn-ghost" style={{ cursor: 'pointer', width: 'fit-content' }}>
+            {file ? file.name : 'Choose CSV file'}
+            <input type="file" accept=".csv" style={{ display: 'none' }} onChange={onPickFile} />
+          </label>
+          {headers.length > 0 && (
+            <div className="grid cols2">
+              {rowFields.map(f2 => (
+                <div className="field" key={f2.key}><label className="hud">{f2.label}</label>
+                  <select className="input" value={colMap[f2.key] || ''} onChange={e => setColMap({ ...colMap, [f2.key]: e.target.value })}>
+                    <option value="">— select —</option>
+                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+      {finalRows.length > 0 && (
+        <>
+          <span className="hud">{finalRows.length} ROWS READY</span>
+          <div className="list">
+            {finalRows.slice(0, 5).map((r, i) => (
+              <div className="item" key={i}><div className="item-title">{JSON.stringify(r)}</div></div>
+            ))}
+          </div>
+        </>
+      )}
+      {err && <div className="auth-err">{err}</div>}
+      <button className="btn-sm" onClick={doImport} disabled={busy || finalRows.length === 0}>
+        {busy ? 'Importing…' : `Import ${finalRows.length || ''} row${finalRows.length === 1 ? '' : 's'}`}
+      </button>
+    </div>
+  )
+}
+
 function Cards({ uid, cards, spentByCard, onChange }) {
   const [label, setLabel] = useState('')
   const [limit, setLimit] = useState('')
+  const [showImport, setShowImport] = useState(false)
 
   const add = async () => {
     if (!label.trim()) return
@@ -159,8 +439,26 @@ function Cards({ uid, cards, spentByCard, onChange }) {
   }
   const del = async id => { await supabase.from('credit_cards').delete().eq('id', id); onChange() }
 
+  if (showImport) {
+    return <SimpleImport title="IMPORT CARDS" uid={uid} table="credit_cards"
+      rowFields={[
+        { key: 'label', label: 'Name column', candidates: ['name', 'label', 'card'], required: true },
+        { key: 'credit_limit', label: 'Limit column', candidates: ['limit', 'credit limit'], numeric: true },
+      ]}
+      parseLines={parseCardLines}
+      extraFields="ONE PER LINE: NAME, LIMIT"
+      buildPayload={(r, uid2) => ({ user_id: uid2, label: r.label, credit_limit: r.credit_limit || 0 })}
+      onClose={() => setShowImport(false)}
+      onDone={() => { setShowImport(false); onChange() }}
+    />
+  }
+
   return (
     <div className="panel">
+      <div className="row between" style={{ marginBottom: '0.7rem' }}>
+        <span className="hud">CARDS</span>
+        <button className="btn-ghost" onClick={() => setShowImport(true)}>Import</button>
+      </div>
       <div className="row wrap" style={{ marginBottom: '0.9rem' }}>
         <input className="input" placeholder="Card name" style={{ flex: 2, minWidth: 130 }} value={label} onChange={e => setLabel(e.target.value)} />
         <input className="input" type="number" placeholder="Limit (₹)" style={{ flex: 1, minWidth: 110 }} value={limit} onChange={e => setLimit(e.target.value)} />
@@ -214,9 +512,28 @@ function Subs({ uid, cards }) {
   const del = id => remove(id)
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
   const payLabel = s => s.card_id ? cardLabel(s.card_id) : (s.payment_method || 'No card')
+  const [showImport, setShowImport] = useState(false)
+
+  if (showImport) {
+    return <SimpleImport title="IMPORT SUBSCRIPTIONS" uid={uid} table="subscriptions"
+      rowFields={[
+        { key: 'name', label: 'Name column', candidates: ['name', 'subscription'], required: true },
+        { key: 'amount', label: 'Amount column', candidates: ['amount', 'price', 'cost'], numeric: true },
+      ]}
+      parseLines={parseSubLines}
+      extraFields="ONE PER LINE: NAME, AMOUNT"
+      buildPayload={(r, uid2) => ({ user_id: uid2, name: r.name, amount: r.amount || 0 })}
+      onClose={() => setShowImport(false)}
+      onDone={() => setShowImport(false)}
+    />
+  }
 
   return (
     <div className="panel">
+      <div className="row between" style={{ marginBottom: '0.7rem' }}>
+        <span className="hud">SUBSCRIPTIONS</span>
+        <button className="btn-ghost" onClick={() => setShowImport(true)}>Import</button>
+      </div>
       <div className="row wrap" style={{ marginBottom: '0.9rem' }}>
         <input className="input" placeholder="Subscription name" style={{ flex: 2, minWidth: 140 }} value={name} onChange={e => setName(e.target.value)} />
         <input className="input" type="number" placeholder="₹/month" style={{ flex: 1, minWidth: 100 }} value={amount} onChange={e => setAmount(e.target.value)} />
