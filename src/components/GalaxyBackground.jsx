@@ -452,17 +452,36 @@ export default function GalaxyBackground({ theme = 'dark' }) {
     }
 
     let raf = 0;
+    let running = true;
+
+    function startLoop() {
+      if (running) return;
+      running = true;
+      last = performance.now();
+      raf = requestAnimationFrame(frame);
+    }
+    function stopLoop() {
+      running = false;
+      cancelAnimationFrame(raf);
+    }
+    function onVisibility() {
+      if (document.hidden) stopLoop();
+      else startLoop();
+    }
+
     resize();
     window.addEventListener("resize", resize);
     window.addEventListener("mousemove", onMouse);
     window.addEventListener("deviceorientation", onOrient);
+    document.addEventListener("visibilitychange", onVisibility);
     raf = requestAnimationFrame(frame);
 
     return () => {
-      cancelAnimationFrame(raf);
+      stopLoop();
       window.removeEventListener("resize", resize);
       window.removeEventListener("mousemove", onMouse);
       window.removeEventListener("deviceorientation", onOrient);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
