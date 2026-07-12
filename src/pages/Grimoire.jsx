@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import PdfReader from '../components/PdfReader'
 
 const today = () => new Date().toISOString().slice(0, 10)
 
@@ -169,10 +170,7 @@ function Ebooks({ uid }) {
   const [books, setBooks] = useState([])
   const [uploading, setUploading] = useState(false)
   const [err, setErr] = useState('')
-  const [open, setOpen] = useState(null) // book being annotated
-  const [quote, setQuote] = useState('')
-  const [page, setPage] = useState('')
-  const [highlights, setHighlights] = useState([])
+  const [open, setOpen] = useState(null) // book being read
 
   const load = async () => {
     const { data, error } = await supabase.from('ebooks').select('*').order('created_at', { ascending: false })
@@ -190,9 +188,10 @@ function Ebooks({ uid }) {
       const path = `${uid}/${Date.now()}.${ext}`
       const { error: upErr } = await supabase.storage.from('ebooks').upload(path, file)
       if (upErr) throw upErr
-      const { data: urlData } = supabase.storage.from('ebooks').getPublicUrl(path)
+      // Bucket is private — store the storage path, not a public URL (public URLs
+      // 404 on a private bucket). A fresh signed URL is generated when opening.
       const { error: insErr } = await supabase.from('ebooks').insert({
-        user_id: uid, title: file.name.replace(/\.[^.]+$/, ''), file_url: urlData.publicUrl,
+        user_id: uid, title: file.name.replace(/\.[^.]+$/, ''), file_path: path,
         file_type: ext?.toLowerCase() === 'epub' ? 'epub' : 'pdf',
       })
       if (insErr) throw insErr
@@ -207,62 +206,28 @@ function Ebooks({ uid }) {
     load()
   }
 
-  const setProgress = async (book, current_page) => {
-    setErr('')
-    const { error } = await supabase.from('ebooks').update({ current_page }).eq('id', book.id)
-    if (error) { setErr(error.message); return }
-    load()
-  }
-
-  const openBook = async book => {
-    setOpen(book)
-    const { data } = await supabase.from('ebook_highlights').select('*').eq('ebook_id', book.id).order('created_at', { ascending: false })
-    setHighlights(data || [])
-  }
-
-  const addHighlight = async () => {
-    if (!quote.trim()) return
-    setErr('')
-    const { error } = await supabase.from('ebook_highlights').insert({
-      user_id: uid, ebook_id: open.id, quote: quote.trim(), page: page ? parseInt(page) : null,
-    })
-    if (error) { setErr(error.message); return }
-    setQuote(''); setPage(''); openBook(open)
+  const saveProgress = async (book, current_page) => {
+    await supabase.from('ebooks').update({ current_page }).eq('id', book.id)
+    setBooks(bs => bs.map(b => b.id === book.id ? { ...b, current_page } : b))
   }
 
   if (open) {
-    return (
-      <div className="panel grid">
-        <div className="row between">
-          <span className="item-title" style={{ fontWeight: 600 }}>{open.title}</span>
+    if (open.file_type === 'epub') {
+      return (
+        <div className="panel placeholder">
+          <span className="hud">EPUB READING · NOT YET SUPPORTED</span>
+          <span className="big">In-app reading currently supports PDF only.</span>
           <button className="btn-ghost" onClick={() => setOpen(null)}>Back</button>
         </div>
-        <a className="btn-ghost" style={{ textDecoration: 'none', display: 'inline-block', width: 'fit-content' }}
-          href={open.file_url} target="_blank" rel="noreferrer">Open file →</a>
-        <div className="row">
-          <label className="hud">Current page</label>
-          <input className="input" type="number" min="0" style={{ width: 100 }}
-            defaultValue={open.current_page || 0}
-            onBlur={e => setProgress(open, parseInt(e.target.value) || 0)} />
-        </div>
-        {err && <div className="auth-err">{err}</div>}
-        <div className="row wrap">
-          <input className="input" placeholder="Highlight / quote" style={{ flex: 2, minWidth: 140 }} value={quote} onChange={e => setQuote(e.target.value)} />
-          <input className="input" type="number" placeholder="Page" style={{ flex: 1, minWidth: 80 }} value={page} onChange={e => setPage(e.target.value)} />
-          <button className="btn-sm" onClick={addHighlight}>Save</button>
-        </div>
-        <div className="list">
-          {highlights.length === 0 && <div className="empty">No highlights yet.</div>}
-          {highlights.map(h => (
-            <div className="item" key={h.id}>
-              <div style={{ flex: 1 }}>
-                <div className="item-title">{h.quote}</div>
-                {h.page != null && <div className="item-sub">page {h.page}</div>}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
+      )
+    }
+    return (
+      <PdfReader
+        book={open}
+        uid={uid}
+        onProgress={n => saveProgress(open, n)}
+        onClose={() => setOpen(null)}
+      />
     )
   }
 
@@ -279,9 +244,9 @@ function Ebooks({ uid }) {
         {books.length === 0 && <div className="empty">No books yet.</div>}
         {books.map(b => (
           <div className="item" key={b.id}>
-            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => openBook(b)}>
+            <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setOpen(b)}>
               <div className="item-title" style={{ fontWeight: 600 }}>{b.title}</div>
-              <div className="item-sub">{b.file_type.toUpperCase()} · page {b.current_page || 0}</div>
+              <div className="item-sub">{b.file_type.toUpperCase()} · page {b.current_page || 0}{b.total_pages ? ` / ${b.total_pages}` : ''}</div>
             </div>
             <button className="btn-ghost danger" onClick={() => del(b.id)}>✕</button>
           </div>

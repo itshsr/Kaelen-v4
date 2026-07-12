@@ -11,7 +11,7 @@ function useUid() {
   return uid
 }
 
-function Expenses({ uid, cards, reload }) {
+function Expenses({ uid, cards, reload, onLogged }) {
   const [expenses, setExpenses] = useState([])
   const [amount, setAmount] = useState('')
   const [cat, setCat] = useState('Food')
@@ -39,12 +39,12 @@ function Expenses({ uid, cards, reload }) {
       card_id: isCard ? method : null,
     })
     if (error) { setErr(error.message); return }
-    setAmount(''); setNote(''); setCustomCat(''); load()
+    setAmount(''); setNote(''); setCustomCat(''); load(); onLogged?.()
   }
   const del = async id => {
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) { setErr(error.message); return }
-    load()
+    load(); onLogged?.()
   }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
 
@@ -288,21 +288,10 @@ export default function Vault() {
           <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t.toUpperCase()}</button>
         ))}
       </div>
-      {uid && tab === 'expenses' && <Expenses uid={uid} cards={cards} reload={reload} />}
+      {uid && tab === 'expenses' && <Expenses uid={uid} cards={cards} reload={reload} onLogged={() => setReload(r => r + 1)} />}
       {uid && tab === 'cards' && <Cards uid={uid} cards={cards} spentByCard={spentByCard} onChange={() => setReload(r => r + 1)} />}
       {uid && tab === 'subscriptions' && <Subs uid={uid} cards={cards} />}
-      {tab === 'expenses' && <ReloadOnAdd setReload={setReload} />}
     </>
   )
 }
 
-// bump card totals when expenses change
-function ReloadOnAdd({ setReload }) {
-  useEffect(() => {
-    const ch = supabase.channel('exp-watch')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, () => setReload(r => r + 1))
-      .subscribe()
-    return () => supabase.removeChannel(ch)
-  }, [setReload])
-  return null
-}

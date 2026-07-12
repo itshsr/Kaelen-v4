@@ -165,17 +165,34 @@ function Focus({ uid }) {
   const [streak, setStreak] = useState(0)
   const [toast, setToast] = useState('')
   const timer = useRef(null)
+  const audioCtxRef = useRef(null)
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission()
     }
+    return () => { audioCtxRef.current?.close?.() }
   }, [])
+
+  // Must be called from a direct user gesture (e.g. the Start button) — browsers
+  // block audio playback that isn't tied to user activation. Creating/resuming
+  // the context here, then reusing it later from the timer callback, is the
+  // standard workaround for "no sound on completion" bugs.
+  const unlockAudio = () => {
+    try {
+      if (!audioCtxRef.current) {
+        const Ctx = window.AudioContext || window.webkitAudioContext
+        audioCtxRef.current = new Ctx()
+      }
+      if (audioCtxRef.current.state === 'suspended') audioCtxRef.current.resume()
+    } catch { /* audio unsupported, ignore */ }
+  }
 
   const beep = () => {
     try {
-      const Ctx = window.AudioContext || window.webkitAudioContext
-      const ctx = new Ctx()
+      const ctx = audioCtxRef.current
+      if (!ctx) return
+      if (ctx.state === 'suspended') ctx.resume()
       const osc = ctx.createOscillator()
       const gain = ctx.createGain()
       osc.type = 'sine'
@@ -185,7 +202,6 @@ function Focus({ uid }) {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5)
       osc.connect(gain); gain.connect(ctx.destination)
       osc.start(); osc.stop(ctx.currentTime + 0.55)
-      setTimeout(() => ctx.close(), 700)
     } catch { /* audio unsupported, ignore */ }
   }
 
@@ -216,6 +232,7 @@ function Focus({ uid }) {
   }
 
   const start = async () => {
+    unlockAudio()
     await supabase.from('user_settings').update({ focus_duration_min: focusMin, break_duration_min: breakMin }).eq('user_id', uid)
     setPhase('focus'); setLeft(Math.round(focusMin * 60))
   }

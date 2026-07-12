@@ -26,7 +26,7 @@ function randomString(len = 64) {
 
 export async function startSpotifyAuth() {
   const verifier = randomString(64)
-  sessionStorage.setItem('spotify_verifier', verifier)
+  localStorage.setItem('spotify_verifier', verifier)
   const challenge = b64url(await sha256(verifier))
 
   const params = new URLSearchParams({
@@ -41,7 +41,7 @@ export async function startSpotifyAuth() {
 }
 
 export async function handleSpotifyCallback(code) {
-  const verifier = sessionStorage.getItem('spotify_verifier')
+  const verifier = localStorage.getItem('spotify_verifier')
   const res = await fetch('https://accounts.spotify.com/api/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -53,7 +53,12 @@ export async function handleSpotifyCallback(code) {
       code_verifier: verifier,
     }),
   })
-  if (!res.ok) throw new Error('Spotify authorization failed')
+  if (!res.ok) {
+    let detail = `HTTP ${res.status}`
+    try { detail = (await res.json())?.error_description || detail } catch { /* keep status */ }
+    if (detail.includes('HTTP') && !verifier) detail = 'No PKCE verifier found — the login may have taken too long, or storage was cleared. Try connecting again.'
+    throw new Error(`Spotify authorization failed: ${detail}`)
+  }
   const data = await res.json()
 
   const { data: u } = await supabase.auth.getUser()
@@ -63,7 +68,7 @@ export async function handleSpotifyCallback(code) {
     spotify_token_expires_at: new Date(Date.now() + data.expires_in * 1000).toISOString(),
   }).eq('id', u.user.id)
 
-  sessionStorage.removeItem('spotify_verifier')
+  localStorage.removeItem('spotify_verifier')
   return data.access_token
 }
 
