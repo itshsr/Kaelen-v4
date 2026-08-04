@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
+import { buildKaelenTools } from '../lib/kaelenTools'
 
-const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner only — the app's tasks, expenses, notes, and habits are managed by the user through the app's own screens, not by you.
+const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner with READ-ONLY access to the user's app data through tools — you can look up their tasks, deadlines, expenses, budget, and habits when asked, but you cannot create, edit, or delete anything. For any request to change data, tell the user plainly to use the app's own screens for that.
 
 The current date and time (in the user's local timezone) is: ${now}. Use this if the user asks about the time, date, day of the week, or anything relative to "now" — don't say you lack access to it. This is a one-time snapshot taken when this message was sent, not a live clock, so don't imply you're tracking time continuously.
 
@@ -57,6 +58,7 @@ export default function Core({ profileName }) {
       const reply = await geminiChat({
         system: KAELEN_SYSTEM(profileName, now),
         messages: nextMsgs.slice(-20).map(({ role, content }) => ({ role, content })),
+        tools: uid ? buildKaelenTools(uid) : undefined,
         signal: abortRef.current.signal,
       })
       const aiMsg = { role: 'assistant', content: reply, persona: 'KAELEN' }
@@ -98,7 +100,7 @@ export default function Core({ profileName }) {
       <Head />
       <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55vh' }}>
         <div className="chat-scroll">
-          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Every message is one API call — nothing runs in the background.</div>}
+          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — every message is triggered by you, nothing runs in the background.</div>}
           {msgs.map((m, i) => (
             <div key={m.id || i} className={`bubble ${m.role}`}>{m.content}</div>
           ))}
