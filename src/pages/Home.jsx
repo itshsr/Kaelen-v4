@@ -104,15 +104,20 @@ export default function Home({ profileName }) {
             <span className="pill">{budget.cap > 0 ? `${Math.round(pct)}%` : 'NO CAP'}</span>
           </div>
           <div className="row between wrap" style={{ marginBottom: '0.6rem' }}>
-            <div className="stat"><span className="num">{inr(budget.spent)}</span><span className="lbl">Spent</span></div>
+            <div className="stat">
+              <span className="num" style={over ? { color: 'var(--danger, #ff6b6b)' } : { color: 'var(--accent, #7c9fff)' }}>
+                {budget.cap > 0 ? (over ? inr(budget.spent - budget.cap) : inr(Math.max(budget.cap - budget.spent, 0))) : inr(budget.spent)}
+              </span>
+              <span className="lbl">{budget.cap > 0 ? (over ? 'Over cap by' : 'Left this month') : 'Spent'}</span>
+            </div>
             <div className="stat" style={{ textAlign: 'right' }}>
-              <span className="num">{budget.cap > 0 ? inr(budget.cap) : '—'}</span><span className="lbl">Cap</span>
+              <span className="hud">{inr(budget.spent)} spent of {budget.cap > 0 ? inr(budget.cap) : '—'}</span>
             </div>
           </div>
           <div className={`progress ${over ? 'over' : ''}`}><div style={{ width: `${pct}%` }} /></div>
           {budget.cap > 0 && (
             <div className="hud" style={{ marginTop: '0.5rem' }}>
-              {over ? `OVER CAP BY ${inr(budget.spent - budget.cap)}` : `${inr(Math.max(budget.cap - budget.spent, 0))} LEFT`}
+              {Math.round(pct)}% OF CAP USED
             </div>
           )}
         </div>
