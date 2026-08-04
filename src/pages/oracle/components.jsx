@@ -101,7 +101,7 @@ export function Spread({ hasKey }) {
   const interpret = async () => {
     setBusy(true); setErr(''); abortRef.current = new AbortController()
     try {
-      const text = await geminiChat({
+      const { text } = await geminiChat({
         system: BASIM_STYLE,
         messages: [{
           role: 'user',
@@ -216,7 +216,7 @@ export function ManualEntry({ hasKey }) {
       const orientationNote = reversed
         ? "This card is REVERSED. My reference codex only documents upright meanings, so for the reversed reading, use traditional tarot convention: a reversed card generally suggests the upright meaning is blocked, delayed, turned inward, or experienced in shadow/excess form. Say plainly that the reversed interpretation is drawn from general convention, not my personal reference."
         : "This card is upright — read it directly from the reference text."
-      const text = await geminiChat({
+      const { text } = await geminiChat({
         system: BASIM_STYLE,
         messages: [{
           role: 'user',
@@ -276,7 +276,7 @@ export function PhotoScan({ hasKey }) {
     setBusy(true); setErr(''); abortRef.current = new AbortController()
     try {
       const base64 = await fileToBase64(file)
-      const text = await geminiChat({
+      const { text } = await geminiChat({
         system: BASIM_STYLE + '\nFor photo scans specifically: identify which tarot card(s) are shown in the image (name each one exactly as printed, or your best identification if partially obscured), state whether each is upright or reversed if visible, then give a reading using traditional meanings for those cards. If you cannot confidently identify a card, say so plainly rather than guessing a specific card name.',
         messages: [{
           role: 'user',
@@ -348,7 +348,7 @@ export function CelticCross({ hasKey }) {
         const ref = codexFor(c.name)
         return `${i + 1}. ${CELTIC_POS[i]} \u2014 ${c.name}${ref ? `\nREFERENCE: ${ref}` : ` (${c.meaning})`}`
       }).join('\n')
-      const text = await geminiChat({
+      const { text } = await geminiChat({
         system: BASIM_STYLE,
         messages: [{
           role: 'user',
@@ -425,7 +425,7 @@ export function AiReadings({ persons, hasKey }) {
   const run = async () => {
     setBusy(true); setErr(''); setOut(''); abortRef.current = new AbortController()
     try {
-      const text = await geminiChat({
+      const { text } = await geminiChat({
         system: BASIM_STYLE,
         messages: [{ role: 'user', content: m.prompt(sel || {}, extra) }],
         signal: abortRef.current.signal,

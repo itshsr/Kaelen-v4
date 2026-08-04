@@ -1,11 +1,16 @@
 import { supabase } from './supabase'
 
-// Phase 1 — READ-ONLY tools for KAELEN (CORE chat).
-// Every executor here only ever SELECTs, scoped to the signed-in user via
+// KAELEN tool definitions for Gemini function calling (CORE chat).
+//
+// Read tools (no `write` flag) only ever SELECT, scoped to the signed-in user via
 // existing RLS policies (uid is passed in for filtering, but RLS is the real
-// backstop). None of these write, update, or delete anything — that's Phase 2,
-// not built yet, and every write will require an explicit on-screen confirm
-// before it ever ships. Keep it that way.
+// backstop). These run automatically inside the model's tool-calling loop.
+//
+// Write tools (`write: true`, added in Phase 2) propose a change — add a task,
+// log an expense, mark a habit done, toggle a task. geminiChat() never runs
+// their `execute()` itself; it stops the moment one is called and hands it back
+// to Core.jsx as a pendingAction. `execute()` only runs after the user taps
+// Confirm on the on-screen card. No write ever happens without that tap.
 
 const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
 const today = () => new Date().toISOString().slice(0, 10)
@@ -67,6 +72,55 @@ async function getHabitsStatus(uid) {
   }
 }
 
+async function markHabitDone(uid, { habit_name }) {
+  const { data: matches, error } = await supabase.from('habits')
+    .select('id, name').eq('user_id', uid).ilike('name', habit_name?.trim() || '')
+  if (error) return { error: error.message }
+  if (!matches?.length) return { error: `No habit named "${habit_name}" found.` }
+  if (matches.length > 1) return { error: `Multiple habits match "${habit_name}" — ask the user to be more specific.` }
+  const habit = matches[0]
+  const day = today()
+  const { data: existing } = await supabase.from('habit_completions')
+    .select('id').eq('user_id', uid).eq('habit_id', habit.id).eq('completed_on', day).maybeSingle()
+  if (existing) return { ok: true, already_done: true, habit: habit.name }
+  const { error: insErr } = await supabase.from('habit_completions').insert({ user_id: uid, habit_id: habit.id, completed_on: day })
+  if (insErr) return { error: insErr.message }
+  return { ok: true, habit: habit.name }
+}
+
+async function addTask(uid, { title }) {
+  const t = (title || '').trim()
+  if (!t) return { error: 'Task title is empty.' }
+  const { error } = await supabase.from('tasks').insert({ user_id: uid, title: t })
+  if (error) return { error: error.message }
+  return { ok: true, title: t }
+}
+
+async function toggleTaskComplete(uid, { task_title, completed }) {
+  const { data: matches, error } = await supabase.from('tasks')
+    .select('id, title, completed').eq('user_id', uid).ilike('title', task_title?.trim() || '')
+  if (error) return { error: error.message }
+  if (!matches?.length) return { error: `No task titled "${task_title}" found.` }
+  if (matches.length > 1) return { error: `Multiple tasks match "${task_title}" — ask the user to be more specific.` }
+  const done = completed !== false
+  const { error: upErr } = await supabase.from('tasks').update({
+    completed: done, completed_at: done ? new Date().toISOString() : null,
+  }).eq('id', matches[0].id)
+  if (upErr) return { error: upErr.message }
+  return { ok: true, title: matches[0].title, completed: done }
+}
+
+async function addExpense(uid, { amount, category, note }) {
+  const amt = Number(amount)
+  if (!amt || amt <= 0) return { error: 'Amount must be a positive number.' }
+  const { error } = await supabase.from('expenses').insert({
+    user_id: uid, amount: amt, category: (category || 'Other').trim(),
+    note: note?.trim() || null, payment_method: 'Cash', card_id: null, spent_on: today(),
+  })
+  if (error) return { error: error.message }
+  return { ok: true, amount: amt, category: category || 'Other' }
+}
+
 // Gemini function-declaration schemas paired with their local executor.
 // `execute` closes over uid so Core.jsx doesn't need to thread it through Gemini args.
 export function buildKaelenTools(uid) {
@@ -105,6 +159,65 @@ export function buildKaelenTools(uid) {
       description: "Get the user's habits from GRIMOIRE and whether each has been marked done today.",
       parameters: { type: 'OBJECT', properties: {} },
       execute: () => getHabitsStatus(uid),
+    },
+    // --- Phase 2: write tools. `write: true` means these are NEVER auto-executed by
+    // geminiChat — calling one only proposes the action; execute() only runs after the
+    // user taps Confirm in the UI (see Core.jsx). confirmLabel builds the human-readable
+    // text shown on that confirmation card.
+    {
+      name: 'add_task',
+      description: 'Propose adding a new task to FORGE. Requires user confirmation before it is created.',
+      parameters: {
+        type: 'OBJECT',
+        properties: { title: { type: 'STRING', description: 'The task title' } },
+        required: ['title'],
+      },
+      write: true,
+      confirmLabel: args => `Add task: "${args.title}"`,
+      execute: args => addTask(uid, args),
+    },
+    {
+      name: 'toggle_task_complete',
+      description: 'Propose marking an existing task done or not done. Match the task by its exact title. Requires user confirmation.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          task_title: { type: 'STRING', description: 'Exact title of the existing task' },
+          completed: { type: 'BOOLEAN', description: 'true to mark done, false to mark not done. Defaults to true.' },
+        },
+        required: ['task_title'],
+      },
+      write: true,
+      confirmLabel: args => `Mark task "${args.task_title}" as ${args.completed === false ? 'not done' : 'done'}`,
+      execute: args => toggleTaskComplete(uid, args),
+    },
+    {
+      name: 'mark_habit_done',
+      description: "Propose marking one of the user's habits as done for today. Match by exact habit name. Requires user confirmation.",
+      parameters: {
+        type: 'OBJECT',
+        properties: { habit_name: { type: 'STRING', description: "Exact name of the existing habit" } },
+        required: ['habit_name'],
+      },
+      write: true,
+      confirmLabel: args => `Mark habit "${args.habit_name}" as done today`,
+      execute: args => markHabitDone(uid, args),
+    },
+    {
+      name: 'add_expense',
+      description: 'Propose logging a new expense in VAULT. Defaults to Cash as the payment method — the user can reassign it to a card afterward in the app. Requires user confirmation.',
+      parameters: {
+        type: 'OBJECT',
+        properties: {
+          amount: { type: 'NUMBER', description: 'Amount in INR (₹)' },
+          category: { type: 'STRING', description: 'Expense category, e.g. Food, Bills, Transport' },
+          note: { type: 'STRING', description: 'Optional short note' },
+        },
+        required: ['amount', 'category'],
+      },
+      write: true,
+      confirmLabel: args => `Log ₹${args.amount} expense — ${args.category}${args.note ? ` (${args.note})` : ''}`,
+      execute: args => addExpense(uid, args),
     },
   ]
 }

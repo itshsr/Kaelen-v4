@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
 import { buildKaelenTools } from '../lib/kaelenTools'
 
-const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner with READ-ONLY access to the user's app data through tools — you can look up their tasks, deadlines, expenses, budget, and habits when asked, but you cannot create, edit, or delete anything. For any request to change data, tell the user plainly to use the app's own screens for that.
+const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner with READ-ONLY access to the user's app data (tasks, deadlines, expenses, budget, habits) through tools, plus a small set of WRITE tools that let you propose adding a task, adding an expense, marking a habit done, or toggling a task's done state. Calling a write tool only shows the user a confirmation card — it never happens automatically, so don't tell them it's done; tell them you've proposed it. For anything you don't have a tool for, tell the user plainly to use the app's own screens.
 
 The current date and time (in the user's local timezone) is: ${now}. Use this if the user asks about the time, date, day of the week, or anything relative to "now" — don't say you lack access to it. This is a one-time snapshot taken when this message was sent, not a live clock, so don't imply you're tracking time continuously.
 
@@ -55,15 +55,30 @@ export default function Core({ profileName }) {
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
         hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
       })
-      const reply = await geminiChat({
+      const result = await geminiChat({
         system: KAELEN_SYSTEM(profileName, now),
         messages: nextMsgs.slice(-20).map(({ role, content }) => ({ role, content })),
         tools: uid ? buildKaelenTools(uid) : undefined,
         signal: abortRef.current.signal,
       })
-      const aiMsg = { role: 'assistant', content: reply, persona: 'KAELEN' }
-      setMsgs(m => [...m, aiMsg])
-      await supabase.from('chat_messages').insert({ user_id: uid, ...aiMsg })
+
+      if (result.pendingActions.length > 0) {
+        // Proposed write(s) — shown as a confirm/cancel card, nothing persisted or
+        // executed until the user taps Confirm on a specific action below.
+        const tools = buildKaelenTools(uid)
+        const localId = `action-${Date.now()}`
+        setMsgs(m => [...m, {
+          localId, role: 'pending-action', leadingText: result.text,
+          actions: result.pendingActions.map(a => ({
+            ...a, status: 'pending',
+            label: tools.find(t => t.name === a.name)?.confirmLabel(a.args) || a.name,
+          })),
+        }])
+      } else {
+        const aiMsg = { role: 'assistant', content: result.text, persona: 'KAELEN' }
+        setMsgs(m => [...m, aiMsg])
+        await supabase.from('chat_messages').insert({ user_id: uid, ...aiMsg })
+      }
     } catch (e) {
       if (e.name === 'AbortError') {
         setInput(text) // return message for revision
@@ -81,6 +96,36 @@ export default function Core({ profileName }) {
   }
 
   const stop = () => abortRef.current?.abort()
+
+  // Runs (or cancels) exactly one proposed write, and only when the user taps the
+  // button — this is the sole place any write tool's execute() is ever called.
+  const resolveAction = async (localId, idx, confirmed) => {
+    const msg = msgs.find(m => m.localId === localId)
+    const action = msg?.actions?.[idx]
+    if (!action || action.status !== 'pending') return
+
+    let status, note
+    if (confirmed) {
+      const tools = buildKaelenTools(uid)
+      const tool = tools.find(t => t.name === action.name)
+      try {
+        const res = await tool.execute(action.args)
+        if (res?.error) { status = 'error'; note = res.error }
+        else { status = 'done'; note = res?.already_done ? 'Already marked done today.' : 'Done.' }
+      } catch (e) {
+        status = 'error'; note = e.message || 'Failed.'
+      }
+    } else {
+      status = 'cancelled'; note = 'Cancelled — nothing was changed.'
+    }
+
+    setMsgs(m => m.map(mm => mm.localId === localId
+      ? { ...mm, actions: mm.actions.map((a, i) => i === idx ? { ...a, status, note } : a) }
+      : mm))
+
+    const summary = `${status === 'done' ? '✅' : status === 'error' ? '⚠️' : '🚫'} ${action.label} — ${note}`
+    await supabase.from('chat_messages').insert({ user_id: uid, role: 'assistant', content: summary, persona: 'KAELEN' })
+  }
 
   if (hasKey === false) {
     return (
@@ -100,9 +145,33 @@ export default function Core({ profileName }) {
       <Head />
       <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55vh' }}>
         <div className="chat-scroll">
-          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — every message is triggered by you, nothing runs in the background.</div>}
+          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — or ask it to add a task or log an expense, which you'll confirm before anything changes.</div>}
           {msgs.map((m, i) => (
-            <div key={m.id || i} className={`bubble ${m.role}`}>{m.content}</div>
+            m.role === 'pending-action' ? (
+              <div key={m.localId} className="bubble assistant" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                {m.leadingText && <div>{m.leadingText}</div>}
+                {m.actions.map((a, idx) => (
+                  <div key={idx} style={{
+                    border: '1px solid rgba(124,159,255,0.3)', borderRadius: 10, padding: '0.6rem 0.8rem',
+                    display: 'flex', flexDirection: 'column', gap: '0.5rem',
+                  }}>
+                    <span>{a.label}</span>
+                    {a.status === 'pending' ? (
+                      <div className="row" style={{ gap: '0.5rem' }}>
+                        <button className="btn-sm" onClick={() => resolveAction(m.localId, idx, true)}>Confirm</button>
+                        <button className="btn-ghost" onClick={() => resolveAction(m.localId, idx, false)}>Cancel</button>
+                      </div>
+                    ) : (
+                      <span className="item-sub">
+                        {a.status === 'done' ? '✅' : a.status === 'error' ? '⚠️' : '🚫'} {a.note}
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div key={m.id || i} className={`bubble ${m.role}`}>{m.content}</div>
+            )
           ))}
           {busy && <div className="bubble assistant thinking"><span/><span/><span/></div>}
           <div ref={bottomRef} />

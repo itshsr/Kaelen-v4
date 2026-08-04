@@ -16,16 +16,18 @@ export async function getApiKey() {
 
 // Shared integrity instruction — inherited by every AI feature. Single source (spec §6.3).
 export const INTEGRITY = `Non-negotiable integrity rules:
-- You cannot save, update, sync, or delete any data in this app, even if given tools that read it. If a tool to write or delete data isn't explicitly provided to you, assume it doesn't exist and say plainly that the user must use the app's own screens for that.
-- Never claim any data was saved, updated, or changed.
+- If you are given "write" tools (adding/changing data), calling one only PROPOSES the action to the user as a card with Confirm/Cancel buttons — it is never executed automatically. Never tell the user something was "added", "saved", "marked done", or "changed"; say you've proposed it and they need to confirm in the app.
+- If a tool you'd need for something isn't given to you, assume it doesn't exist — don't claim you can do something you weren't given a tool for.
 - Never invent numbers, dates, statuses, or facts not given to you in this conversation or returned by a tool call.
 - If a tool call fails or returns nothing, say so plainly. Never invent a technical-sounding explanation, and never guess at data you don't actually have.`
 
-// tools: optional array of { name, description, parameters, execute } — execute(args) => Promise<jsonable result>.
-// Runs a bounded tool-calling loop entirely within this one user-triggered call: the model
-// may request a read via `tools`, we execute it locally and feed the result back, up to
-// MAX_TOOL_ROUNDS times, before returning final text. This is still a single instance-based
-// invocation from the caller's perspective — no polling, no background calls.
+// tools: optional array of { name, description, parameters, write?, execute } — execute(args) => Promise<jsonable result>.
+// Read tools (write falsy) run inline within this one call: the model requests a read, we
+// execute it locally and feed the result back, up to MAX_TOOL_ROUNDS times, before returning
+// final text — still a single instance-based invocation, no polling, no background calls.
+// Write tools (write: true) are NEVER executed here — the moment the model calls one, the loop
+// stops and the call is handed back to the caller as a pendingAction for the user to confirm
+// or cancel in the UI. Actually running a write tool is the caller's job, only after that tap.
 export async function geminiChat({ system, messages, tools, signal }) {
   const key = await getApiKey()
   if (!key) throw new Error('NO_KEY')
@@ -62,15 +64,23 @@ export async function geminiChat({ system, messages, tools, signal }) {
     const data = await res.json()
     const parts = data?.candidates?.[0]?.content?.parts || []
     const calls = parts.filter(p => p.functionCall)
+    const leadingText = parts.filter(p => p.text).map(p => p.text).join('')
 
     if (calls.length === 0) {
-      const text = parts.map(p => p.text).filter(Boolean).join('')
-      if (!text) throw new Error('Empty response from model.')
-      return text
+      if (!leadingText) throw new Error('Empty response from model.')
+      return { text: leadingText, pendingActions: [] }
     }
 
-    // Model wants to read data — execute each requested tool locally, then loop back
-    // with the results so it can either call another tool or produce a final answer.
+    const writeCalls = calls.filter(c => tools.find(t => t.name === c.functionCall.name)?.write)
+    if (writeCalls.length > 0) {
+      // Stop immediately — do not execute. Hand these back for the UI to confirm.
+      return {
+        text: leadingText,
+        pendingActions: writeCalls.map(c => ({ name: c.functionCall.name, args: c.functionCall.args || {} })),
+      }
+    }
+
+    // All read tools — execute locally and loop back so the model can answer or ask for more.
     contents.push({ role: 'model', parts })
     const responseParts = []
     for (const call of calls) {
