@@ -182,6 +182,61 @@ function ImportExpenses({ uid, cards, onDone, onClose }) {
   )
 }
 
+function EditExpenseRow({ x, cards, onSave, onCancel }) {
+  const isCardInit = x.card_id ? x.card_id : (x.payment_method === 'Cash' || x.payment_method === 'UPI' ? x.payment_method : 'Cash')
+  const [amount, setAmount] = useState(String(x.amount))
+  const [cat, setCat] = useState(DEFAULT_CATS.includes(x.category) ? x.category : '__custom')
+  const [customCat, setCustomCat] = useState(DEFAULT_CATS.includes(x.category) ? '' : x.category)
+  const [note, setNote] = useState(x.note || '')
+  const [method, setMethod] = useState(isCardInit)
+  const [spentOn, setSpentOn] = useState(x.spent_on || '')
+  const [err, setErr] = useState('')
+
+  const save = () => {
+    const amt = parseFloat(amount)
+    if (!amt || amt <= 0) { setErr('Enter a valid amount'); return }
+    const category = cat === '__custom' ? (customCat.trim() || 'Other') : cat
+    const isCard = method !== 'Cash' && method !== 'UPI'
+    onSave({
+      amount: amt, category, note: note.trim() || null, spent_on: spentOn,
+      payment_method: isCard ? 'Card' : method,
+      card_id: isCard ? method : null,
+    })
+  }
+
+  return (
+    <div className="item" style={{ flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem' }}>
+      <div className="row wrap">
+        <input className="input" type="number" min="0" step="0.01" placeholder="Amount (₹)" style={{ flex: 1, minWidth: 100 }}
+          value={amount} onChange={e => setAmount(e.target.value)} />
+        <select className="input" style={{ flex: 1, minWidth: 100 }} value={cat} onChange={e => setCat(e.target.value)}>
+          {DEFAULT_CATS.map(c => <option key={c}>{c}</option>)}
+          <option value="__custom">Custom…</option>
+        </select>
+        {cat === '__custom' && (
+          <input className="input" placeholder="Category name" style={{ flex: 1, minWidth: 100 }}
+            value={customCat} onChange={e => setCustomCat(e.target.value)} />
+        )}
+      </div>
+      <div className="row wrap">
+        <input className="input" type="date" style={{ flex: 1, minWidth: 130 }} value={spentOn} onChange={e => setSpentOn(e.target.value)} />
+        <select className="input" style={{ flex: 1, minWidth: 110 }} value={method} onChange={e => setMethod(e.target.value)}>
+          <option>Cash</option>
+          <option value="UPI">UPI</option>
+          {cards.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+        </select>
+        <input className="input" placeholder="Note (optional)" style={{ flex: 2, minWidth: 130 }}
+          value={note} onChange={e => setNote(e.target.value)} onKeyDown={e => e.key === 'Enter' && save()} />
+      </div>
+      {err && <div className="auth-err">{err}</div>}
+      <div className="row" style={{ gap: '0.5rem' }}>
+        <button className="btn-sm" onClick={save}>Save</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 function Expenses({ uid, cards, reload, onLogged }) {
   const [expenses, setExpenses] = useState([])
   const [amount, setAmount] = useState('')
@@ -191,6 +246,7 @@ function Expenses({ uid, cards, reload, onLogged }) {
   const [method, setMethod] = useState('Cash')
   const [err, setErr] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [editingId, setEditingId] = useState(null)
 
   const load = async () => {
     const { data } = await supabase.from('expenses').select('*')
@@ -217,6 +273,11 @@ function Expenses({ uid, cards, reload, onLogged }) {
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) { setErr(error.message); return }
     load(); onLogged?.()
+  }
+  const saveEdit = async (id, payload) => {
+    const { error } = await supabase.from('expenses').update(payload).eq('id', id)
+    if (error) { setErr(error.message); return }
+    setEditingId(null); load(); onLogged?.()
   }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
 
@@ -259,15 +320,22 @@ function Expenses({ uid, cards, reload, onLogged }) {
       <div className="list">
         {expenses.length === 0 && <div className="empty">No expenses this month.</div>}
         {expenses.map(x => (
-          <div className="item" key={x.id}>
-            <div style={{ flex: 1 }}>
-              <div className="item-title">{inr(x.amount)} · {x.category}</div>
-              <div className="item-sub">
-                {x.spent_on} · {x.card_id ? cardLabel(x.card_id) : (x.payment_method || 'Cash')}{x.note ? ` · ${x.note}` : ''}
+          editingId === x.id ? (
+            <EditExpenseRow key={x.id} x={x} cards={cards}
+              onSave={payload => saveEdit(x.id, payload)}
+              onCancel={() => setEditingId(null)} />
+          ) : (
+            <div className="item" key={x.id}>
+              <div style={{ flex: 1 }}>
+                <div className="item-title">{inr(x.amount)} · {x.category}</div>
+                <div className="item-sub">
+                  {x.spent_on} · {x.card_id ? cardLabel(x.card_id) : (x.payment_method || 'Cash')}{x.note ? ` · ${x.note}` : ''}
+                </div>
               </div>
+              <button className="btn-ghost" onClick={() => setEditingId(x.id)}>Edit</button>
+              <button className="btn-ghost danger" onClick={() => del(x.id)}>✕</button>
             </div>
-            <button className="btn-ghost danger" onClick={() => del(x.id)}>✕</button>
-          </div>
+          )
         ))}
       </div>
     </div>
@@ -427,17 +495,45 @@ function SimpleImport({ title, uid, table, rowFields, parseLines, extraFields, b
   )
 }
 
+function EditCardBalance({ c, onSave, onCancel }) {
+  const [val, setVal] = useState(String(c.opening_balance || 0))
+  const [err, setErr] = useState('')
+  const save = () => {
+    const v = parseFloat(val)
+    if (isNaN(v) || v < 0) { setErr('Enter a valid amount'); return }
+    onSave(v)
+  }
+  return (
+    <div className="row wrap" style={{ gap: '0.5rem' }}>
+      <input className="input" type="number" min="0" step="0.01" style={{ flex: 1, minWidth: 110 }}
+        placeholder="Starting balance (₹)" value={val} onChange={e => setVal(e.target.value)} />
+      <button className="btn-sm" onClick={save}>Save</button>
+      <button className="btn-ghost" onClick={onCancel}>Cancel</button>
+      {err && <div className="auth-err">{err}</div>}
+    </div>
+  )
+}
+
 function Cards({ uid, cards, spentByCard, onChange }) {
   const [label, setLabel] = useState('')
   const [limit, setLimit] = useState('')
+  const [opening, setOpening] = useState('')
   const [showImport, setShowImport] = useState(false)
+  const [editingBalanceId, setEditingBalanceId] = useState(null)
 
   const add = async () => {
     if (!label.trim()) return
-    await supabase.from('credit_cards').insert({ user_id: uid, label: label.trim(), credit_limit: parseFloat(limit) || 0 })
-    setLabel(''); setLimit(''); onChange()
+    await supabase.from('credit_cards').insert({
+      user_id: uid, label: label.trim(), credit_limit: parseFloat(limit) || 0,
+      opening_balance: parseFloat(opening) || 0,
+    })
+    setLabel(''); setLimit(''); setOpening(''); onChange()
   }
   const del = async id => { await supabase.from('credit_cards').delete().eq('id', id); onChange() }
+  const saveBalance = async (id, opening_balance) => {
+    await supabase.from('credit_cards').update({ opening_balance }).eq('id', id)
+    setEditingBalanceId(null); onChange()
+  }
 
   if (showImport) {
     return <SimpleImport title="IMPORT CARDS" uid={uid} table="credit_cards"
@@ -462,12 +558,14 @@ function Cards({ uid, cards, spentByCard, onChange }) {
       <div className="row wrap" style={{ marginBottom: '0.9rem' }}>
         <input className="input" placeholder="Card name" style={{ flex: 2, minWidth: 130 }} value={label} onChange={e => setLabel(e.target.value)} />
         <input className="input" type="number" placeholder="Limit (₹)" style={{ flex: 1, minWidth: 110 }} value={limit} onChange={e => setLimit(e.target.value)} />
+        <input className="input" type="number" placeholder="Starting balance (₹)" style={{ flex: 1, minWidth: 130 }} value={opening} onChange={e => setOpening(e.target.value)} />
         <button className="btn-sm" onClick={add}>Add card</button>
       </div>
       <div className="list">
         {cards.length === 0 && <div className="empty">No cards added.</div>}
         {cards.map(c => {
-          const spent = spentByCard[c.id] || 0
+          const opening_balance = Number(c.opening_balance || 0)
+          const spent = (spentByCard[c.id] || 0) + opening_balance
           const lim = Number(c.credit_limit)
           const pct = lim > 0 ? Math.min((spent / lim) * 100, 100) : 0
           return (
@@ -480,6 +578,14 @@ function Cards({ uid, cards, spentByCard, onChange }) {
               <div className="item-sub">
                 {inr(spent)} spent · {lim > 0 ? `${inr(Math.max(lim - spent, 0))} available of ${inr(lim)}` : 'no limit set'}
               </div>
+              {editingBalanceId === c.id ? (
+                <EditCardBalance c={c} onSave={v => saveBalance(c.id, v)} onCancel={() => setEditingBalanceId(null)} />
+              ) : (
+                <div className="row" style={{ gap: '0.5rem' }}>
+                  <span className="item-sub">Starting balance: {inr(opening_balance)}</span>
+                  <button className="btn-ghost" onClick={() => setEditingBalanceId(c.id)}>Edit</button>
+                </div>
+              )}
             </div>
           )
         })}
