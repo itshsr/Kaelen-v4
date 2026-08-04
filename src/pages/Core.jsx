@@ -3,7 +3,9 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
 
-const KAELEN_SYSTEM = name => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner only — the app's tasks, expenses, notes, and habits are managed by the user through the app's own screens, not by you.
+const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner only — the app's tasks, expenses, notes, and habits are managed by the user through the app's own screens, not by you.
+
+The current date and time (in the user's local timezone) is: ${now}. Use this if the user asks about the time, date, day of the week, or anything relative to "now" — don't say you lack access to it. This is a one-time snapshot taken when this message was sent, not a live clock, so don't imply you're tracking time continuously.
 
 ${INTEGRITY}`
 
@@ -46,8 +48,14 @@ export default function Core({ profileName }) {
     await supabase.from('chat_messages').insert({ user_id: uid, ...userMsg })
 
     try {
+      // Snapshot taken right here, at send-time only — never polled or refreshed
+      // in the background, so this stays a per-message call, not a live clock.
+      const now = new Date().toLocaleString(undefined, {
+        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+        hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+      })
       const reply = await geminiChat({
-        system: KAELEN_SYSTEM(profileName),
+        system: KAELEN_SYSTEM(profileName, now),
         messages: nextMsgs.slice(-20).map(({ role, content }) => ({ role, content })),
         signal: abortRef.current.signal,
       })
