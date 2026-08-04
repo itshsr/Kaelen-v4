@@ -14,6 +14,23 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-loader" style="
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 1rem; background: #060913;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    ">
+      <img src="/wolf.png" alt="Kaelen" style="width: 72px; height: 72px; opacity: 0.95;
+        animation: boot-pulse 1.6s ease-in-out infinite;" />
+      <span style="
+        font-size: 1.4rem; letter-spacing: 0.35em; font-weight: 600; padding-left: 0.35em;
+        background: linear-gradient(90deg, #7c9fff, #b98cff);
+        -webkit-background-clip: text; background-clip: text; color: transparent;
+      ">KAELEN</span>
+    </div>
+    <style>
+      @keyframes boot-pulse { 0%, 100% { opacity: 0.6; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1); } }
+    </style>
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
