@@ -47,25 +47,37 @@ function ImportExpenses({ uid, cards, onDone, onClose }) {
   }
 
   const csvPreview = useMemo(() => {
-    if (mode !== 'csv' || !amountCol) return []
-    return csvRows.map(r => {
+    if (mode !== 'csv' || !amountCol) return { rows: [], skipped: 0, dateDefaulted: 0 }
+    let skipped = 0
+    let dateDefaulted = 0
+    const rows = csvRows.map(r => {
       const debit = parseAmount(r[amountCol])
       const credit = creditCol ? parseAmount(r[creditCol]) : NaN
       const isCredit = !isNaN(credit) && credit > 0 && (isNaN(debit) || debit <= 0)
+      const amount = isCredit ? credit : debit
+      const rawDate = dateCol ? r[dateCol] : null
+      const parsed = dateCol ? parseDate(rawDate) : null
+      if (dateCol && rawDate && !parsed) dateDefaulted++
       return {
-        amount: isCredit ? credit : debit,
-        isCredit,
-        spent_on: parseDate(r[dateCol]),
+        amount, isCredit,
+        spent_on: parsed || null,
         note: descCol ? String(r[descCol] || '').slice(0, 200) : null,
       }
-    }).filter(r => !isNaN(r.amount) && r.amount > 0)
+    }).filter(r => {
+      const ok = !isNaN(r.amount) && r.amount > 0
+      if (!ok) skipped++
+      return ok
+    })
+    return { rows, skipped, dateDefaulted }
   }, [mode, csvRows, amountCol, creditCol, dateCol, descCol])
 
-  const pastePreview = useMemo(() => mode === 'paste' ? parseExpenseLines(pasteText) : [], [mode, pasteText])
+  const pastePreview = useMemo(() => mode === 'paste' ? parseExpenseLines(pasteText) : { rows: [], skipped: 0 }, [mode, pasteText])
 
   const finalRows = mode === 'paste'
-    ? pastePreview
-    : csvPreview.filter(r => !skipCredits || !r.isCredit)
+    ? pastePreview.rows
+    : csvPreview.rows.filter(r => !skipCredits || !r.isCredit)
+  const skippedCount = mode === 'paste' ? pastePreview.skipped : csvPreview.skipped
+  const dateDefaultedCount = mode === 'csv' ? csvPreview.dateDefaulted : 0
 
   const isCard = method !== 'Cash' && method !== 'UPI'
 
@@ -154,6 +166,12 @@ function ImportExpenses({ uid, cards, onDone, onClose }) {
       {finalRows.length > 0 && (
         <>
           <span className="hud">{finalRows.length} ROWS READY \u00b7 PREVIEW FIRST 5</span>
+          {(skippedCount > 0 || dateDefaultedCount > 0) && (
+            <div className="auth-err" style={{ color: 'var(--warm)' }}>
+              {skippedCount > 0 && `${skippedCount} row${skippedCount === 1 ? '' : 's'} skipped — no valid amount. `}
+              {dateDefaultedCount > 0 && `${dateDefaultedCount} row${dateDefaultedCount === 1 ? '' : 's'} had an unreadable date — will import as today's date.`}
+            </div>
+          )}
           <div className="list">
             {finalRows.slice(0, 5).map((r, i) => (
               <div className="item" key={i}>
@@ -426,16 +444,23 @@ function SimpleImport({ title, uid, table, rowFields, parseLines, extraFields, b
   }
 
   const csvPreview = useMemo(() => {
-    if (mode !== 'csv') return []
-    return csvRows.map(r => {
+    if (mode !== 'csv') return { rows: [], skipped: 0 }
+    let skipped = 0
+    const rows = csvRows.map(r => {
       const out = {}
       rowFields.forEach(f2 => { out[f2.key] = f2.numeric ? (parseAmount(r[colMap[f2.key]]) || 0) : String(r[colMap[f2.key]] || '').trim() })
       return out
-    }).filter(r => rowFields.every(f2 => !f2.required || r[f2.key]))
+    }).filter(r => {
+      const ok = rowFields.every(f2 => !f2.required || r[f2.key])
+      if (!ok) skipped++
+      return ok
+    })
+    return { rows, skipped }
   }, [mode, csvRows, colMap]) // eslint-disable-line
 
-  const pastePreview = useMemo(() => mode === 'paste' ? parseLines(pasteText) : [], [mode, pasteText])
-  const finalRows = mode === 'paste' ? pastePreview : csvPreview
+  const pastePreview = useMemo(() => mode === 'paste' ? parseLines(pasteText) : { rows: [], skipped: 0 }, [mode, pasteText])
+  const finalRows = mode === 'paste' ? pastePreview.rows : csvPreview.rows
+  const skippedCount = mode === 'paste' ? pastePreview.skipped : csvPreview.skipped
 
   const doImport = async () => {
     if (finalRows.length === 0) return
@@ -486,6 +511,11 @@ function SimpleImport({ title, uid, table, rowFields, parseLines, extraFields, b
       {finalRows.length > 0 && (
         <>
           <span className="hud">{finalRows.length} ROWS READY</span>
+          {skippedCount > 0 && (
+            <div className="auth-err" style={{ color: 'var(--warm)' }}>
+              {skippedCount} row{skippedCount === 1 ? '' : 's'} skipped — missing required field.
+            </div>
+          )}
           <div className="list">
             {finalRows.slice(0, 5).map((r, i) => (
               <div className="item" key={i}><div className="item-title">{JSON.stringify(r)}</div></div>

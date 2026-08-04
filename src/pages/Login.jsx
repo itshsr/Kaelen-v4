@@ -20,6 +20,13 @@ export default function Login() {
         if (error) throw error
         setInfo('Account created. Check your email if confirmation is required, then sign in.')
         setMode('login')
+      } else if (mode === 'reset') {
+        const { error } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        })
+        if (error) throw error
+        setInfo('If an account exists for that email, a reset link is on its way.')
+        setMode('login')
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -56,22 +63,32 @@ export default function Login() {
           <label className="hud">Email</label>
           <input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" />
         </div>
-        <div className="field">
-          <label className="hud">Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-            onKeyDown={e => e.key === 'Enter' && submit()} />
-        </div>
+        {mode !== 'reset' && (
+          <div className="field">
+            <label className="hud">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+              onKeyDown={e => e.key === 'Enter' && submit()} />
+          </div>
+        )}
+        {mode === 'login' && (
+          <button className="btn-ghost" style={{ margin: '-0.3rem 0 0.6rem', alignSelf: 'flex-end' }}
+            onClick={() => { setMode('reset'); setErr(''); setInfo('') }}>Forgot password?</button>
+        )}
 
-        <button className="btn" onClick={submit} disabled={busy || !email || !password}>
-          {busy ? '···' : mode === 'signup' ? 'Create account' : 'Enter'}
+        <button className="btn" onClick={submit} disabled={busy || !email || (mode !== 'reset' && !password)}>
+          {busy ? '···' : mode === 'signup' ? 'Create account' : mode === 'reset' ? 'Send reset link' : 'Enter'}
         </button>
 
         <div className="auth-toggle">
-          {mode === 'login' ? (
-            <>No account? <button onClick={() => { setMode('signup'); setErr('') }}>Sign up</button></>
-          ) : (
-            <>Have an account? <button onClick={() => { setMode('login'); setErr('') }}>Sign in</button></>
+          {mode === 'login' && (
+            <>No account? <button onClick={() => { setMode('signup'); setErr(''); setInfo('') }}>Sign up</button></>
+          )}
+          {mode === 'signup' && (
+            <>Have an account? <button onClick={() => { setMode('login'); setErr(''); setInfo('') }}>Sign in</button></>
+          )}
+          {mode === 'reset' && (
+            <>Remembered it? <button onClick={() => { setMode('login'); setErr(''); setInfo('') }}>Back to sign in</button></>
           )}
         </div>
       </div>

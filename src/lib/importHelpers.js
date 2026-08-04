@@ -36,8 +36,11 @@ export function parseAmount(raw) {
   return parseFloat(cleaned)
 }
 
+// Returns an ISO date string if parseable, or null if not — callers decide
+// whether to default to today, but the null lets them also flag it to the user
+// instead of silently misdating a row with no indication anything went wrong.
 export function parseDate(raw) {
-  if (!raw) return new Date().toISOString().slice(0, 10)
+  if (!raw) return null
   const s = String(raw).trim()
   // try common DD/MM/YYYY or DD-MM-YYYY first (typical Indian bank exports)
   const dmy = s.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/)
@@ -49,29 +52,48 @@ export function parseDate(raw) {
   }
   const d = new Date(s)
   if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10)
-  return new Date().toISOString().slice(0, 10)
+  return null
 }
 
 // "amount, category, note" per line — for manual paste of expenses.
+// Returns { rows, skipped } — skipped is the count of lines that didn't parse to
+// a valid positive amount, so the UI can tell the user rows were dropped instead
+// of silently importing fewer rows than were pasted.
 export function parseExpenseLines(text) {
-  return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const rows = []
+  let skipped = 0
+  for (const line of lines) {
     const [amt, category, ...rest] = line.split(',').map(s => s.trim())
-    return { amount: parseAmount(amt), category: category || 'Other', note: rest.join(',').trim() || null }
-  }).filter(r => !isNaN(r.amount) && r.amount > 0)
+    const amount = parseAmount(amt)
+    if (isNaN(amount) || amount <= 0) { skipped++; continue }
+    rows.push({ amount, category: category || 'Other', note: rest.join(',').trim() || null })
+  }
+  return { rows, skipped }
 }
 
 // "label, limit" per line — for manual paste of cards.
 export function parseCardLines(text) {
-  return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const rows = []
+  let skipped = 0
+  for (const line of lines) {
     const [label, limit] = line.split(',').map(s => s.trim())
-    return { label, credit_limit: parseAmount(limit) || 0 }
-  }).filter(r => r.label)
+    if (!label) { skipped++; continue }
+    rows.push({ label, credit_limit: parseAmount(limit) || 0 })
+  }
+  return { rows, skipped }
 }
 
 // "name, amount" per line — for manual paste of subscriptions.
 export function parseSubLines(text) {
-  return text.split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const rows = []
+  let skipped = 0
+  for (const line of lines) {
     const [name, amount] = line.split(',').map(s => s.trim())
-    return { name, amount: parseAmount(amount) || 0 }
-  }).filter(r => r.name)
+    if (!name) { skipped++; continue }
+    rows.push({ name, amount: parseAmount(amount) || 0 })
+  }
+  return { rows, skipped }
 }
