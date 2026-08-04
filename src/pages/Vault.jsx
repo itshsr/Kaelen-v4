@@ -371,7 +371,12 @@ function Budget({ uid, reload }) {
   return (
     <div className="panel">
       <div className="row between wrap" style={{ marginBottom: '0.7rem' }}>
-        <div className="stat"><span className="num">{inr(spent)}</span><span className="lbl">Spent this month</span></div>
+        <div className="stat">
+          <span className="num" style={over ? { color: 'var(--danger, #ff6b6b)' } : { color: 'var(--accent, #7c9fff)' }}>
+            {cap > 0 ? (over ? inr(spent - cap) : inr(Math.max(cap - spent, 0))) : inr(spent)}
+          </span>
+          <span className="lbl">{cap > 0 ? (over ? 'Over cap by' : 'Left this month') : 'Spent this month'}</span>
+        </div>
         <div className="stat" style={{ textAlign: 'right' }}>
           {editing ? (
             <div className="row">
@@ -380,7 +385,7 @@ function Budget({ uid, reload }) {
             </div>
           ) : (
             <>
-              <span className="num">{cap > 0 ? inr(cap) : '—'}</span>
+              <span className="hud">{inr(spent)} spent of {cap > 0 ? inr(cap) : '—'}</span>
               <span className="lbl">Monthly cap · <button className="btn-ghost" style={{ padding: '0 0.3rem' }} onClick={() => { setDraft(String(cap || '')); setEditing(true) }}>edit</button></span>
             </>
           )}
@@ -389,7 +394,7 @@ function Budget({ uid, reload }) {
       <div className={`progress ${over ? 'over' : ''}`}><div style={{ width: `${pct}%` }} /></div>
       <div className="hud" style={{ marginTop: '0.5rem' }}>
         {cap > 0
-          ? (over ? `OVER CAP BY ${inr(spent - cap)}` : `${inr(Math.max(cap - spent, 0))} LEFT · ${Math.round(pct)}% OF CAP USED`)
+          ? `${Math.round(pct)}% OF CAP USED`
           : 'SET A MONTHLY CAP'}
       </div>
     </div>
