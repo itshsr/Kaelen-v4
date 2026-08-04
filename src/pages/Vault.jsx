@@ -270,6 +270,7 @@ function Expenses({ uid, cards, reload, onLogged }) {
     setAmount(''); setNote(''); setCustomCat(''); load(); onLogged?.()
   }
   const del = async id => {
+    if (!window.confirm('Delete this expense? This cannot be undone.')) return
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) { setErr(error.message); return }
     load(); onLogged?.()
@@ -525,18 +526,29 @@ function Cards({ uid, cards, spentByCard, onChange }) {
   const [opening, setOpening] = useState('')
   const [showImport, setShowImport] = useState(false)
   const [editingBalanceId, setEditingBalanceId] = useState(null)
+  const [err, setErr] = useState('')
 
   const add = async () => {
     if (!label.trim()) return
-    await supabase.from('credit_cards').insert({
+    setErr('')
+    const { error } = await supabase.from('credit_cards').insert({
       user_id: uid, label: label.trim(), credit_limit: parseFloat(limit) || 0,
       opening_balance: parseFloat(opening) || 0,
     })
+    if (error) { setErr(error.message); return }
     setLabel(''); setLimit(''); setOpening(''); onChange()
   }
-  const del = async id => { await supabase.from('credit_cards').delete().eq('id', id); onChange() }
+  const del = async id => {
+    if (!window.confirm('Delete this card? This cannot be undone.')) return
+    setErr('')
+    const { error } = await supabase.from('credit_cards').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    onChange()
+  }
   const saveBalance = async (id, opening_balance) => {
-    await supabase.from('credit_cards').update({ opening_balance }).eq('id', id)
+    setErr('')
+    const { error } = await supabase.from('credit_cards').update({ opening_balance }).eq('id', id)
+    if (error) { setErr(error.message); return }
     setEditingBalanceId(null); onChange()
   }
 
@@ -566,6 +578,7 @@ function Cards({ uid, cards, spentByCard, onChange }) {
         <input className="input" type="number" placeholder="Starting balance (₹)" style={{ flex: 1, minWidth: 130 }} value={opening} onChange={e => setOpening(e.target.value)} />
         <button className="btn-sm" onClick={add}>Add card</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {cards.length === 0 && <div className="empty">No cards added.</div>}
         {cards.map(c => {
@@ -600,7 +613,7 @@ function Cards({ uid, cards, spentByCard, onChange }) {
 }
 
 function Subs({ uid, cards }) {
-  const { rows: subs, insert, update, remove } = useSupabaseTable('subscriptions', {
+  const { rows: subs, err, insert, update, remove } = useSupabaseTable('subscriptions', {
     orderBy: { column: 'created_at', ascending: false },
     enabled: !!uid,
   })
@@ -620,7 +633,10 @@ function Subs({ uid, cards }) {
   }
   const setPaid = (s, paid) => update(s.id, { paid_this_month: paid })
   const togglePause = s => update(s.id, { status: s.status === 'active' ? 'paused' : 'active' })
-  const del = id => remove(id)
+  const del = id => {
+    if (!window.confirm('Delete this subscription? This cannot be undone.')) return
+    remove(id)
+  }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'
   const payLabel = s => s.card_id ? cardLabel(s.card_id) : (s.payment_method || 'No card')
   const [showImport, setShowImport] = useState(false)
@@ -656,6 +672,7 @@ function Subs({ uid, cards }) {
         </select>
         <button className="btn-sm" onClick={add}>Add</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {subs.length === 0 && <div className="empty">No subscriptions tracked.</div>}
         {subs.map(s => (

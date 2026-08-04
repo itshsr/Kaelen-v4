@@ -7,7 +7,7 @@
   "theme_color": "#060913",
   "icons": [
     {
-      "src": "/wolf.png",
+      "src": "/wolf-circle.png",
       "sizes": "512x512",
       "type": "image/png"
     }

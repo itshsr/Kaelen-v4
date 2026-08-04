@@ -39,7 +39,7 @@ export default function Login() {
       <div className="corner br hud">v1 · PHASE 1</div>
 
       <div className="login-card">
-        <img src="/wolf.png" alt="" style={{ height: 96, width: "auto", borderRadius: 12, display: "block", margin: "0 auto 0.7rem", boxShadow: "0 0 24px var(--glow)" }} />
+        <img src="/wolf-icon.png" alt="" style={{ height: 96, width: "auto", borderRadius: 12, display: "block", margin: "0 auto 0.7rem", boxShadow: "0 0 24px var(--glow)" }} />
         <h1>KAELEN</h1>
         <p className="login-sub hud">personal operating system</p>
 

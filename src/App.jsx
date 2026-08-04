@@ -19,6 +19,27 @@ function RouteFallback() {
   return <div className="panel placeholder"><span className="hud">LOADING…</span></div>
 }
 
+function OfflineBanner() {
+  const [online, setOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true)
+  useEffect(() => {
+    const on = () => setOnline(true)
+    const off = () => setOnline(false)
+    window.addEventListener('online', on)
+    window.addEventListener('offline', off)
+    return () => { window.removeEventListener('online', on); window.removeEventListener('offline', off) }
+  }, [])
+  if (online) return null
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 500,
+      background: '#5f1c28', color: '#f4ecd9', textAlign: 'center',
+      padding: '0.4rem 1rem', fontSize: '0.8rem', letterSpacing: '0.05em',
+    }}>
+      No connection — reconnect to keep KAELEN in sync
+    </div>
+  )
+}
+
 const SECTIONS = [
   { path: '/', label: 'HOME' },
   { path: '/core', label: 'CORE' },
@@ -85,10 +106,11 @@ export default function App() {
 
   return (
     <BrowserRouter>
+      <OfflineBanner />
       <GalaxyBackground theme={theme} />
       <div className="shell">
         <header className="topbar">
-          <span className="brand-lockup"><img src="/wolf.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
+          <span className="brand-lockup"><img src="/wolf-icon.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
           <div className="top-actions">
             <button className="icon-btn" onClick={toggleTheme} aria-label="Toggle theme">
               {theme === 'dark' ? 'LIGHT' : 'DARK'}
