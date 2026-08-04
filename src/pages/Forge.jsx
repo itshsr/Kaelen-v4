@@ -15,6 +15,7 @@ function Tasks({ uid }) {
   const [projectId, setProjectId] = useState('')
   const [q, setQ] = useState('')
   const [showDone, setShowDone] = useState(false)
+  const [err, setErr] = useState('')
 
   const load = async () => {
     const [{ data: t }, { data: p }] = await Promise.all([
@@ -27,18 +28,28 @@ function Tasks({ uid }) {
 
   const add = async () => {
     if (!title.trim()) return
+    setErr('')
     const { error } = await supabase.from('tasks').insert({
       user_id: uid, title: title.trim(), project_id: projectId || null,
     })
-    if (!error) { setTitle(''); load() }
+    if (error) { setErr(error.message); return }
+    setTitle(''); load()
   }
   const toggle = async t => {
-    await supabase.from('tasks').update({
+    setErr('')
+    const { error } = await supabase.from('tasks').update({
       completed: !t.completed, completed_at: !t.completed ? new Date().toISOString() : null,
     }).eq('id', t.id)
+    if (error) { setErr(error.message); return }
     load()
   }
-  const del = async id => { await supabase.from('tasks').delete().eq('id', id); load() }
+  const del = async id => {
+    if (!window.confirm('Delete this task? This cannot be undone.')) return
+    setErr('')
+    const { error } = await supabase.from('tasks').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
 
   const filtered = useMemo(() =>
     tasks.filter(t => t.title.toLowerCase().includes(q.toLowerCase())), [tasks, q])
@@ -58,6 +69,7 @@ function Tasks({ uid }) {
         <button className="btn-sm" onClick={add}>Add</button>
       </div>
       <input className="input" style={{ marginBottom: '0.8rem' }} placeholder="Search tasks" value={q} onChange={e => setQ(e.target.value)} />
+      {err && <div className="auth-err">{err}</div>}
 
       <div className="list">
         {open.length === 0 && <div className="empty">No open tasks.</div>}
@@ -102,6 +114,7 @@ function Projects({ uid }) {
   const [tasks, setTasks] = useState([])
   const [name, setName] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [err, setErr] = useState('')
 
   const load = async () => {
     const [{ data: p }, { data: t }] = await Promise.all([
@@ -114,11 +127,24 @@ function Projects({ uid }) {
 
   const add = async () => {
     if (!name.trim()) return
-    await supabase.from('projects').insert({ user_id: uid, name: name.trim(), deadline: deadline || null })
+    setErr('')
+    const { error } = await supabase.from('projects').insert({ user_id: uid, name: name.trim(), deadline: deadline || null })
+    if (error) { setErr(error.message); return }
     setName(''); setDeadline(''); load()
   }
-  const setStatus = async (id, status) => { await supabase.from('projects').update({ status }).eq('id', id); load() }
-  const del = async id => { await supabase.from('projects').delete().eq('id', id); load() }
+  const setStatus = async (id, status) => {
+    setErr('')
+    const { error } = await supabase.from('projects').update({ status }).eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
+  const del = async id => {
+    if (!window.confirm('Delete this project? Linked tasks will keep their project reference removed. This cannot be undone.')) return
+    setErr('')
+    const { error } = await supabase.from('projects').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
 
   return (
     <div className="panel">
@@ -128,6 +154,7 @@ function Projects({ uid }) {
         <input className="input" type="date" style={{ flex: 1, minWidth: 130 }} value={deadline} onChange={e => setDeadline(e.target.value)} />
         <button className="btn-sm" onClick={add}>Add</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {projects.length === 0 && <div className="empty">No projects yet.</div>}
         {projects.map(p => {
@@ -166,6 +193,7 @@ function Focus({ uid }) {
   const [toast, setToast] = useState('')
   const timer = useRef(null)
   const audioCtxRef = useRef(null)
+  const endTimeRef = useRef(null) // absolute ms timestamp the current phase ends — survives throttled/backgrounded intervals
 
   useEffect(() => {
     if ('Notification' in window && Notification.permission === 'default') {
@@ -234,15 +262,24 @@ function Focus({ uid }) {
   const start = async () => {
     unlockAudio()
     await supabase.from('user_settings').update({ focus_duration_min: focusMin, break_duration_min: breakMin }).eq('user_id', uid)
+    endTimeRef.current = Date.now() + Math.round(focusMin * 60) * 1000
     setPhase('focus'); setLeft(Math.round(focusMin * 60))
   }
-  const stop = () => { clearInterval(timer.current); setPhase('idle'); setLeft(null) }
+  const stop = () => { clearInterval(timer.current); endTimeRef.current = null; setPhase('idle'); setLeft(null) }
 
+  // Timestamp-based countdown — reading (endTime - now) instead of decrementing
+  // a counter means the timer stays accurate even if setInterval gets throttled
+  // or paused while the screen is locked or the app is backgrounded; it snaps
+  // back to the correct remaining time the instant the tab/app is visible again.
   useEffect(() => {
-    if (phase === 'idle' || left === null) return
-    timer.current = setInterval(() => setLeft(l => l - 1), 1000)
-    return () => clearInterval(timer.current)
-  }, [phase]) // eslint-disable-line
+    if (phase === 'idle' || !endTimeRef.current) return
+    const tick = () => setLeft(Math.max(0, Math.round((endTimeRef.current - Date.now()) / 1000)))
+    tick()
+    timer.current = setInterval(tick, 1000)
+    const onVisible = () => { if (document.visibilityState === 'visible') tick() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => { clearInterval(timer.current); document.removeEventListener('visibilitychange', onVisible) }
+  }, [phase])
 
   useEffect(() => {
     if (left === 0) {
@@ -250,9 +287,11 @@ function Focus({ uid }) {
       if (phase === 'focus') {
         supabase.from('focus_sessions').insert({ user_id: uid, duration_min: focusMin, completed: true }).then(loadStreak)
         notifyDone('Focus session complete', 'Time for a break.')
+        endTimeRef.current = Date.now() + Math.round(breakMin * 60) * 1000
         setPhase('break'); setLeft(Math.round(breakMin * 60))
       } else {
         notifyDone('Break over', 'Ready for another focus session?')
+        endTimeRef.current = null
         setPhase('idle'); setLeft(null)
       }
     }

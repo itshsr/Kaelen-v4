@@ -9,6 +9,10 @@ const today = () => new Date().toISOString().slice(0, 10)
 function Habits({ uid }) {
   const { habits, doneToday, streaks, toggle, add, remove, err } = useHabits(uid)
   const [name, setName] = useState('')
+  const del = id => {
+    if (!window.confirm('Delete this habit? Its streak history will be lost. This cannot be undone.')) return
+    remove(id)
+  }
   return (
     <div className="panel">
       <div className="row" style={{ marginBottom: '0.9rem' }}>
@@ -28,7 +32,7 @@ function Habits({ uid }) {
               <div className="item-title">{h.name}</div>
               <div className="item-sub">{streaks[h.id] || 0} day streak</div>
             </div>
-            <button className="btn-ghost danger" onClick={() => remove(h.id)}>✕</button>
+            <button className="btn-ghost danger" onClick={() => del(h.id)}>✕</button>
           </div>
         ))}
       </div>
@@ -56,6 +60,7 @@ function Notes({ uid }) {
     if (!result.error) setEditing(null)
   }
   const del = async id => {
+    if (!window.confirm('Delete this note? This cannot be undone.')) return
     const result = await remove(id)
     if (!result.error) setEditing(null)
   }
@@ -122,14 +127,21 @@ function Ebooks({ uid }) {
       // 404 on a private bucket). A fresh signed URL is generated when opening.
       const { error: insErr } = await supabase.from('ebooks').insert({
         user_id: uid, title: file.name.replace(/\.[^.]+$/, ''), file_path: path,
-        file_type: ext?.toLowerCase() === 'epub' ? 'epub' : 'pdf',
+        file_type: 'pdf',
       })
       if (insErr) throw insErr
       reload()
     } catch (e2) { setUploadErr(e2.message) } finally { setUploading(false) }
   }
 
-  const del = id => remove(id)
+  const del = async book => {
+    if (!window.confirm('Delete this book? This cannot be undone.')) return
+    if (book.file_path) {
+      const { error: storErr } = await supabase.storage.from('ebooks').remove([book.file_path])
+      if (storErr) { setUploadErr(storErr.message); return }
+    }
+    remove(book.id)
+  }
 
   const saveProgress = (book, current_page) => update(book.id, { current_page })
 
@@ -157,10 +169,11 @@ function Ebooks({ uid }) {
     <div className="panel">
       <div className="row" style={{ marginBottom: '0.9rem' }}>
         <label className="btn-sm" style={{ cursor: 'pointer' }}>
-          {uploading ? 'Uploading…' : 'Upload PDF/EPUB'}
-          <input type="file" accept=".pdf,.epub" style={{ display: 'none' }} onChange={upload} disabled={uploading} />
+          {uploading ? 'Uploading…' : 'Upload PDF'}
+          <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={upload} disabled={uploading} />
         </label>
       </div>
+      <span className="hud" style={{ display: 'block', marginBottom: '0.6rem' }}>EPUB support coming soon — PDF only for now</span>
       {(err || uploadErr) && <div className="auth-err">{uploadErr || err}</div>}
       <div className="list">
         {books.length === 0 && <div className="empty">No books yet.</div>}
@@ -170,7 +183,7 @@ function Ebooks({ uid }) {
               <div className="item-title" style={{ fontWeight: 600 }}>{b.title}</div>
               <div className="item-sub">{b.file_type.toUpperCase()} · page {b.current_page || 0}{b.total_pages ? ` / ${b.total_pages}` : ''}</div>
             </div>
-            <button className="btn-ghost danger" onClick={() => del(b.id)}>✕</button>
+            <button className="btn-ghost danger" onClick={() => del(b)}>✕</button>
           </div>
         ))}
       </div>

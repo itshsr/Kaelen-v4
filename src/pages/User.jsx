@@ -103,6 +103,7 @@ export default function User() {
 function Profile({ uid }) {
   const [p, setP] = useState(null)
   const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
 
   useEffect(() => {
     supabase.from('profiles').select('*').eq('id', uid).single().then(({ data }) => setP(data))
@@ -110,11 +111,13 @@ function Profile({ uid }) {
 
   const set = (k, v) => setP(prev => ({ ...prev, [k]: v }))
   const save = async () => {
+    setErr('')
     const { error } = await supabase.from('profiles').update({
       name: p.name, role: p.role, city: p.city,
       birth_date: p.birth_date || null, birth_time: p.birth_time || null, birth_place: p.birth_place,
     }).eq('id', uid)
-    if (!error) { setSaved(true); setTimeout(() => setSaved(false), 2000) }
+    if (error) { setErr(error.message); return }
+    setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
   if (!p) return null
@@ -138,6 +141,7 @@ function Profile({ uid }) {
         <button className="btn-sm" onClick={save}>Save profile</button>
         {saved && <span className="pill accent">SAVED</span>}
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <span className="hud">Birth details feed ORACLE readings in Phase 4.</span>
     </div>
   )
@@ -146,6 +150,7 @@ function Profile({ uid }) {
 function People({ uid }) {
   const [people, setPeople] = useState([])
   const [form, setForm] = useState({ name: '', relationship: '', birth_date: '', birth_time: '', birth_place: '', emoji: '', city: '', notes: '' })
+  const [err, setErr] = useState('')
 
   const load = async () => {
     const { data } = await supabase.from('people_profiles').select('*').order('created_at')
@@ -156,14 +161,22 @@ function People({ uid }) {
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const add = async () => {
     if (!form.name.trim()) return
-    await supabase.from('people_profiles').insert({
+    setErr('')
+    const { error } = await supabase.from('people_profiles').insert({
       user_id: uid, ...form,
       birth_date: form.birth_date || null, birth_time: form.birth_time || null,
     })
+    if (error) { setErr(error.message); return }
     setForm({ name: '', relationship: '', birth_date: '', birth_time: '', birth_place: '', emoji: '', city: '', notes: '' })
     load()
   }
-  const del = async id => { await supabase.from('people_profiles').delete().eq('id', id); load() }
+  const del = async id => {
+    if (!window.confirm('Delete this person? This cannot be undone.')) return
+    setErr('')
+    const { error } = await supabase.from('people_profiles').delete().eq('id', id)
+    if (error) { setErr(error.message); return }
+    load()
+  }
 
   return (
     <div className="grid">
@@ -182,6 +195,7 @@ function People({ uid }) {
         </div>
         <button className="btn-sm" onClick={add}>Add person</button>
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <div className="list">
         {people.length === 0 && <div className="empty">No people profiles yet.</div>}
         {people.map(pp => (
@@ -205,6 +219,7 @@ function ApiKey({ uid }) {
   const [show, setShow] = useState(false)
   const [active, setActive] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [err, setErr] = useState('')
 
   useEffect(() => {
     supabase.rpc('get_gemini_key').then(({ data }) => {
@@ -213,10 +228,10 @@ function ApiKey({ uid }) {
   }, [uid])
 
   const save = async () => {
+    setErr('')
     const { error } = await supabase.rpc('set_gemini_key', { p_key: key.trim() || null })
-    if (!error) {
-      setActive(!!key.trim()); setSaved(true); setTimeout(() => setSaved(false), 2000)
-    }
+    if (error) { setErr(error.message); return }
+    setActive(!!key.trim()); setSaved(true); setTimeout(() => setSaved(false), 2000)
   }
 
   return (
@@ -234,6 +249,7 @@ function ApiKey({ uid }) {
         <button className="btn-sm" onClick={save}>Save key</button>
         {saved && <span className="pill accent">SAVED</span>}
       </div>
+      {err && <div className="auth-err">{err}</div>}
       <span className="hud">AI layer activates in Phase 3. No calls are made until then.</span>
     </div>
   )
