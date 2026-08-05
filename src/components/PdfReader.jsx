@@ -120,7 +120,8 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
   }, [pdf, pageNum, resizeTick]) // eslint-disable-line
 
   const goTo = (n, dir) => {
-    if (n < 1 || n > numPages || turning || zoom > 1.02) return
+    if (n < 1 || n > numPages || turning) return
+    if (zoom > 1.02) resetZoom() // page buttons should always work — reset any zoom/pan for the new page
     setTurning({ dir, phase: 'out' })
     setTimeout(() => {
       setPageNum(n)
