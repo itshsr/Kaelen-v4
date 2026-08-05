@@ -57,7 +57,11 @@ export default function Core({ profileName }) {
       })
       const result = await geminiChat({
         system: KAELEN_SYSTEM(profileName, now),
-        messages: nextMsgs.slice(-20).map(({ role, content }) => ({ role, content })),
+        // Filter out local-only UI entries (pending-action cards have no plain-text
+        // `content`) — sending one to Gemini produces an empty/malformed part and a
+        // hard 400 error. Once an action is resolved we already persist a proper
+        // text summary, so the model doesn't lose that context.
+        messages: nextMsgs.filter(m => typeof m.content === 'string').slice(-20).map(({ role, content }) => ({ role, content })),
         tools: uid ? buildKaelenTools(uid) : undefined,
         signal: abortRef.current.signal,
       })

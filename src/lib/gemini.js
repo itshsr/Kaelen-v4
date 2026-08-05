@@ -104,6 +104,6 @@ export async function geminiChat({ system, messages, tools, signal }) {
 function buildParts(m) {
   const parts = []
   if (m.image) parts.push({ inline_data: { mime_type: m.image.mimeType, data: m.image.base64 } })
-  parts.push({ text: m.content })
+  parts.push({ text: typeof m.content === 'string' ? m.content : '' })
   return parts
 }
