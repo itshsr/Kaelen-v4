@@ -4,7 +4,7 @@ import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import GalaxyBackground from './components/GalaxyBackground'
-import { useCalendarData, dayItems, today as todayIso } from './lib/calendarData'
+import { useCalendarData, dayItems, today as todayIso, resyncEventNotifications } from './lib/calendarData'
 
 // Route-level code splitting — each page's JS only downloads when actually
 // visited, instead of every page loading on first paint regardless of use.
@@ -131,6 +131,7 @@ export default function App() {
         if (data?.name) setProfileName(data.name)
         if (data?.theme && data.theme !== theme) setTheme(data.theme)
       })
+    resyncEventNotifications(session.user.id)
   }, [session]) // eslint-disable-line
 
   const toggleTheme = async () => {

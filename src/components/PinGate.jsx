@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { isBiometricAvailable, authenticateWithBiometrics } from '../lib/biometric'
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
@@ -10,18 +11,21 @@ async function sha256Hex(text) {
 // wrapped in this gate. Set it once from any protected section; it unlocks the others
 // with the same PIN. Each section still prompts independently per visit (local
 // `unlocked` state, not persisted), so leaving one unlocked section doesn't leave
-// the others open.
+// the others open. Fingerprint/face unlock is offered as a same-device alternative
+// to typing the PIN, not a separate credential — see lib/biometric.js.
 export default function PinGate({ uid, label, code, children }) {
   const [hasPin, setHasPin] = useState(null) // null = loading
   const [unlocked, setUnlocked] = useState(false)
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [err, setErr] = useState('')
+  const [bioAvailable, setBioAvailable] = useState(false)
 
   useEffect(() => {
     supabase.from('profiles').select('user_tab_pin').eq('id', uid).single().then(({ data }) => {
       setHasPin(!!data?.user_tab_pin)
     })
+    isBiometricAvailable().then(setBioAvailable)
   }, [uid])
 
   const create = async () => {
@@ -40,6 +44,13 @@ export default function PinGate({ uid, label, code, children }) {
     const hash = await sha256Hex(pin)
     if (hash === data?.user_tab_pin) setUnlocked(true)
     else setErr('Incorrect PIN.')
+  }
+
+  const unlockWithBiometrics = async () => {
+    setErr('')
+    const ok = await authenticateWithBiometrics(`Unlock ${label}`)
+    if (ok) setUnlocked(true)
+    else setErr('Biometric authentication failed or was cancelled — use your PIN instead.')
   }
 
   if (hasPin === null) return null
@@ -61,6 +72,11 @@ export default function PinGate({ uid, label, code, children }) {
           </div>
         )}
         {err && <div className="auth-err">{err}</div>}
+        {hasPin && bioAvailable && (
+          <button className="btn-sm" style={{ width: '100%', marginBottom: '0.9rem' }} onClick={unlockWithBiometrics}>
+            🔒 Unlock with fingerprint / face
+          </button>
+        )}
         <input className="input" type="password" inputMode="numeric" placeholder="PIN" value={pin}
           onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
           onKeyDown={e => e.key === 'Enter' && (hasPin ? unlock() : !confirmPin && document.getElementById('confirm-pin-input')?.focus())}

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { supabase } from './supabase'
+import { scheduleNotification, cancelNotifications, notificationId } from './notifications'
 
 export const pad2 = n => String(n).padStart(2, '0')
 export const isoDate = d => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
@@ -76,4 +77,45 @@ export function conflictIds(items) {
     }
   }
   return bad
+}
+
+// Next future occurrence of a manual event (accounting for recurrence) as a
+// JS Date, or null if it has none coming up in the next ~60 days.
+function nextOccurrenceDate(ev) {
+  if (!ev.event_time) return null
+  for (let i = 0; i < 60; i++) {
+    const dateIso = addDays(today(), i)
+    if (!occursOn(ev, dateIso)) continue
+    const dt = new Date(`${dateIso}T${ev.event_time}`)
+    if (dt.getTime() > Date.now()) return dt
+  }
+  return null
+}
+
+// Re-schedules native reminder notifications (30 min before each timed
+// event's next occurrence) to match current data. Cancels everything it
+// scheduled last time first, so deleted/changed events don't leave stale
+// notifications behind. No-ops on web. Safe to call often — on app load and
+// after adding an event.
+export async function resyncEventNotifications(uid) {
+  if (!uid) return
+  const { data: events } = await supabase.from('calendar_events').select('*').eq('user_id', uid).not('event_time', 'is', null)
+  let prevIds = []
+  try { prevIds = JSON.parse(localStorage.getItem('kaelen-notif-ids') || '[]') } catch { /* ignore */ }
+  await cancelNotifications(prevIds)
+
+  const newIds = []
+  for (const ev of events || []) {
+    const occ = nextOccurrenceDate(ev)
+    if (!occ) continue
+    const remindAt = new Date(occ.getTime() - 30 * 60000)
+    const id = notificationId(ev.id)
+    await scheduleNotification({
+      id, title: `Upcoming: ${ev.title}`,
+      body: `${ev.category} at ${occ.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}${ev.location ? ' · ' + ev.location : ''}`,
+      at: remindAt,
+    })
+    newIds.push(id)
+  }
+  try { localStorage.setItem('kaelen-notif-ids', JSON.stringify(newIds)) } catch { /* ignore */ }
 }

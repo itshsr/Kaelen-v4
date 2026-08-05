@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { useCalendarData, dayItems, conflictIds, today, addDays, startOfWeek, minutesOf } from '../lib/calendarData'
+import { useCalendarData, dayItems, conflictIds, today, addDays, startOfWeek, minutesOf, isoDate, resyncEventNotifications } from '../lib/calendarData'
+import { ensureNotificationPermission } from '../lib/notifications'
 
 const CATEGORIES = ['Meeting', 'Work', 'Personal', 'Reminder']
 const CAT_COLOR = {
@@ -25,7 +26,7 @@ function Dot({ color }) {
   return <span style={{ width: 5, height: 5, borderRadius: '50%', background: color, display: 'inline-block' }} />
 }
 
-function AgendaRow({ item, conflicted }) {
+function AgendaRow({ item, conflicted, onDelete }) {
   const color = CAT_COLOR[item.category] || '#7c9fff'
   return (
     <div className="item" style={{ borderLeft: `3px solid ${color}`, opacity: item.done ? 0.5 : 1 }}>
@@ -38,6 +39,9 @@ function AgendaRow({ item, conflicted }) {
           {item.location ? ` · ${item.location}` : ''} · {item.category}
         </div>
       </div>
+      {item.kind === 'event' && onDelete && (
+        <button className="btn-ghost danger" onClick={() => onDelete(item)}>✕</button>
+      )}
     </div>
   )
 }
@@ -53,6 +57,8 @@ function AddEventForm({ uid, defaultDate, onDone, onCancel }) {
   const [recurrence, setRecurrence] = useState('none')
   const [err, setErr] = useState('')
 
+  useEffect(() => { ensureNotificationPermission() }, [])
+
   const save = async () => {
     if (!title.trim()) { setErr('Title is required.'); return }
     setErr('')
@@ -62,6 +68,7 @@ function AddEventForm({ uid, defaultDate, onDone, onCancel }) {
       category, location: location.trim() || null, recurrence,
     })
     if (error) { setErr(error.message); return }
+    resyncEventNotifications(uid)
     onDone()
   }
 
@@ -147,7 +154,7 @@ function MonthView({ monthIso, data, onSelectDay }) {
   )
 }
 
-function WeekView({ weekStartIso, data, onSelectDay }) {
+function WeekView({ weekStartIso, data, onSelectDay, onDeleteEvent }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStartIso, i))
   const t = today()
   return (
@@ -164,7 +171,7 @@ function WeekView({ weekStartIso, data, onSelectDay }) {
             </button>
             {items.length === 0
               ? <div className="empty">Nothing scheduled.</div>
-              : items.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} />)}
+              : items.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} onDelete={onDeleteEvent} />)}
           </div>
         )
       })}
@@ -172,7 +179,7 @@ function WeekView({ weekStartIso, data, onSelectDay }) {
   )
 }
 
-function DayView({ dateIso, data }) {
+function DayView({ dateIso, data, onDeleteEvent }) {
   const items = dayItems(dateIso, data)
   const conflicts = conflictIds(items)
   const allDayItems = items.filter(i => i.allDay)
@@ -183,7 +190,7 @@ function DayView({ dateIso, data }) {
       <span className="item-title" style={{ display: 'block', marginBottom: '0.7rem' }}>{dayLabel(dateIso)}</span>
       {allDayItems.length > 0 && (
         <div className="list" style={{ marginBottom: '0.8rem' }}>
-          {allDayItems.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} />)}
+          {allDayItems.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} onDelete={onDeleteEvent} />)}
         </div>
       )}
       <div style={{ position: 'relative' }}>
@@ -195,7 +202,7 @@ function DayView({ dateIso, data }) {
                 {h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`}
               </span>
               <div style={{ flex: 1, padding: '0.2rem 0' }}>
-                {hourItems.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} />)}
+                {hourItems.map(i => <AgendaRow key={`${i.kind}-${i.id}`} item={i} conflicted={conflicts.has(i.id)} onDelete={onDeleteEvent} />)}
               </div>
             </div>
           )
@@ -222,6 +229,13 @@ export default function Calendar() {
     if (view === 'month') { const d = new Date(monthIso + 'T00:00:00'); d.setMonth(d.getMonth() + dir); setCursor(isoDate(d)) }
     else if (view === 'week') setCursor(addDays(cursor, dir * 7))
     else setCursor(addDays(cursor, dir))
+  }
+
+  const deleteEvent = async item => {
+    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) return
+    await supabase.from('calendar_events').delete().eq('id', item.id)
+    resyncEventNotifications(uid)
+    data.reload()
   }
 
   const heading = view === 'month' ? monthLabel(monthIso) : view === 'week' ? `Week of ${dayLabel(weekStartIso)}` : dayLabel(cursor)
@@ -254,8 +268,8 @@ export default function Calendar() {
       )}
 
       {view === 'month' && <MonthView monthIso={monthIso} data={data} onSelectDay={d => { setCursor(d); setView('day') }} />}
-      {view === 'week' && <WeekView weekStartIso={weekStartIso} data={data} onSelectDay={d => { setCursor(d); setView('day') }} />}
-      {view === 'day' && <DayView dateIso={cursor} data={data} />}
+      {view === 'week' && <WeekView weekStartIso={weekStartIso} data={data} onSelectDay={d => { setCursor(d); setView('day') }} onDeleteEvent={deleteEvent} />}
+      {view === 'day' && <DayView dateIso={cursor} data={data} onDeleteEvent={deleteEvent} />}
     </>
   )
 }
