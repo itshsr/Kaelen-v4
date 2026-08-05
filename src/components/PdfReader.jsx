@@ -88,7 +88,21 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       const availW = stage.clientWidth - pad * 2
       const availH = stage.clientHeight - pad * 2
       const baseViewport = page.getViewport({ scale: 1 })
-      const fitScale = Math.min(availW / baseViewport.width, availH / baseViewport.height)
+      // Fit to the full available HEIGHT (not "contain" within both dimensions) —
+      // this is why there was dead space above/below the page even after the
+      // earlier sizing fix: this PDF's pages are proportionally wider than a
+      // phone screen, so fitting both dimensions left height unused. Filling
+      // height edge-to-edge reads far more like an actual book; if that makes
+      // the page slightly wider than the screen, the stage's overflow:hidden
+      // crops a sliver of outer margin evenly on both sides — never the text.
+      const fitScale = (() => {
+        let s = availH / baseViewport.height
+        // Guard against pathological cases (e.g. a landscape-oriented PDF) where
+        // height-fit would crop way more than just outer margins — fall back to
+        // width-fit rather than slicing off real content.
+        if (baseViewport.width * s > availW * 1.4) s = availW / baseViewport.width
+        return s
+      })()
       const viewport = page.getViewport({ scale: fitScale * dpr })
       const ctx = canvas.getContext('2d')
       canvas.width = viewport.width
