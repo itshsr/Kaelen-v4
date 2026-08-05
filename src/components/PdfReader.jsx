@@ -5,22 +5,33 @@ import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker
 
+const SWIPE_THRESHOLD = 60 // px, before a horizontal drag counts as a page-turn swipe
+const ZOOM_MIN = 1
+const ZOOM_MAX = 3
+const DOUBLE_TAP_ZOOM = 2.2
+const DOUBLE_TAP_MS = 300
+
 /**
- * Real in-app PDF reader — pages are rendered to a canvas via pdf.js (not a
- * browser download link). Includes a page-turn slide transition and an
- * on-page bookmark button, replacing the earlier "Open file" external-link
- * approach entirely.
+ * Full-screen in-app PDF reader — pages render to a canvas via pdf.js (not a
+ * browser download link), retina-sharp via devicePixelRatio-aware scaling.
+ * The whole viewport becomes the book: swipe left/right for a 3D page-turn
+ * flip, pinch or double-tap to zoom, drag to pan while zoomed.
  */
 export default function PdfReader({ book, uid, onProgress, onClose }) {
   const canvasRef = useRef(null)
+  const stageRef = useRef(null)
   const [pdf, setPdf] = useState(null)
   const [pageNum, setPageNum] = useState(Math.max(1, book.current_page || 1))
   const [numPages, setNumPages] = useState(book.total_pages || 0)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [turning, setTurning] = useState(null) // 'next' | 'prev' | null
+  const [turning, setTurning] = useState(null) // { dir: 'next'|'prev', phase: 'out'|'in' } | null
   const [bookmarked, setBookmarked] = useState(false)
   const [savedNote, setSavedNote] = useState('')
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+
+  const touch = useRef({}) // scratch state for gesture tracking, doesn't need to trigger renders
 
   // load the document via a fresh signed URL (bucket is private)
   useEffect(() => {
@@ -51,7 +62,8 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     return () => { cancelled = true }
   }, [book.file_path]) // eslint-disable-line
 
-  // render current page
+  // render current page — sized to the container but drawn at devicePixelRatio
+  // for genuinely sharp (not just upscaled) text on high-density phone screens.
   useEffect(() => {
     if (!pdf) return
     let cancelled = false
@@ -59,16 +71,18 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       if (cancelled) return
       const canvas = canvasRef.current
       if (!canvas) return
+      const dpr = Math.min(window.devicePixelRatio || 1, 3)
       const containerWidth = canvas.parentElement.clientWidth
       const baseViewport = page.getViewport({ scale: 1 })
-      const scale = Math.min(2, containerWidth / baseViewport.width)
-      const viewport = page.getViewport({ scale })
+      const fitScale = containerWidth / baseViewport.width
+      const viewport = page.getViewport({ scale: fitScale * dpr })
       const ctx = canvas.getContext('2d')
       canvas.width = viewport.width
       canvas.height = viewport.height
+      canvas.style.width = containerWidth + 'px'
+      canvas.style.height = (viewport.height / dpr) + 'px'
       await page.render({ canvasContext: ctx, viewport }).promise
     })
-    // check if this page is already bookmarked
     supabase.from('ebook_highlights').select('id, note').eq('ebook_id', book.id).eq('page', pageNum).limit(1)
       .then(({ data }) => {
         setBookmarked(!!data?.length)
@@ -77,14 +91,15 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     return () => { cancelled = true }
   }, [pdf, pageNum]) // eslint-disable-line
 
-  const goTo = async (n, dir) => {
-    if (n < 1 || n > numPages || turning) return
-    setTurning(dir)
+  const goTo = (n, dir) => {
+    if (n < 1 || n > numPages || turning || zoom > 1.02) return
+    setTurning({ dir, phase: 'out' })
     setTimeout(() => {
       setPageNum(n)
-      setTurning(null)
       onProgress?.(n)
-    }, 180)
+      setTurning({ dir, phase: 'in' })
+      setTimeout(() => setTurning(null), 240)
+    }, 220)
   }
 
   const toggleBookmark = async () => {
@@ -99,52 +114,153 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     }
   }
 
+  const resetZoom = () => { setZoom(1); setPan({ x: 0, y: 0 }) }
+
+  // --- Touch gestures: pinch-zoom, double-tap-zoom, drag-to-pan, swipe-to-turn ---
+  const dist = (t0, t1) => Math.hypot(t1.clientX - t0.clientX, t1.clientY - t0.clientY)
+
+  const onTouchStart = e => {
+    if (e.touches.length === 2) {
+      touch.current = {
+        mode: 'pinch',
+        startDist: dist(e.touches[0], e.touches[1]),
+        startZoom: zoom,
+      }
+    } else if (e.touches.length === 1) {
+      const now = Date.now()
+      const t = e.touches[0]
+      const isDoubleTap = touch.current.lastTap && now - touch.current.lastTap < DOUBLE_TAP_MS
+      touch.current = {
+        mode: zoom > 1.02 ? 'pan' : 'swipe',
+        startX: t.clientX, startY: t.clientY,
+        startPan: pan, lastTap: isDoubleTap ? null : now,
+      }
+      if (isDoubleTap) {
+        zoom > 1.02 ? resetZoom() : setZoom(DOUBLE_TAP_ZOOM)
+        touch.current.mode = 'none'
+      }
+    }
+  }
+
+  const onTouchMove = e => {
+    const m = touch.current
+    if (m.mode === 'pinch' && e.touches.length === 2) {
+      const scale = dist(e.touches[0], e.touches[1]) / m.startDist
+      setZoom(Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, m.startZoom * scale)))
+    } else if (m.mode === 'pan' && e.touches.length === 1) {
+      const t = e.touches[0]
+      setPan({ x: m.startPan.x + (t.clientX - m.startX), y: m.startPan.y + (t.clientY - m.startY) })
+    }
+    // 'swipe' mode: no live tracking needed, decided on touchend below
+  }
+
+  const onTouchEnd = e => {
+    const m = touch.current
+    if (m.mode === 'swipe' && e.changedTouches?.length === 1) {
+      const dx = e.changedTouches[0].clientX - m.startX
+      const dy = e.changedTouches[0].clientY - m.startY
+      if (Math.abs(dx) > SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+        if (dx < 0) goTo(pageNum + 1, 'next')
+        else goTo(pageNum - 1, 'prev')
+      }
+    }
+    if (zoom < 1.05) resetZoom()
+    touch.current = {}
+  }
+
+  // Constant per-direction transform origin — the flip pivots around the edge
+  // being turned toward, for the whole out+in motion (not swapped mid-flip).
+  const flipTransform = (() => {
+    if (!turning) return { transform: 'rotateY(0deg) scale(1)', opacity: 1 }
+    const origin = turning.dir === 'next' ? '100% 50%' : '0% 50%'
+    if (turning.phase === 'out') {
+      return {
+        transform: `rotateY(${turning.dir === 'next' ? '-78deg' : '78deg'}) scale(0.92)`,
+        opacity: 0.25, transformOrigin: origin,
+      }
+    }
+    return { transform: 'rotateY(0deg) scale(1)', opacity: 1, transformOrigin: origin }
+  })()
+
   return (
-    <div className="panel" style={{ padding: '0.9rem' }}>
-      <div className="row between" style={{ marginBottom: '0.7rem' }}>
-        <span className="item-title" style={{ fontWeight: 600 }}>{book.title}</span>
-        <button className="btn-ghost" onClick={onClose}>Back</button>
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 800, background: '#060913',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      {/* Toolbar */}
+      <div className="row between" style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+        <button className="btn-ghost" onClick={onClose}>✕</button>
+        <span className="item-title" style={{ fontWeight: 600, flex: 1, textAlign: 'center', margin: '0 0.6rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {book.title}
+        </span>
+        <button
+          onClick={toggleBookmark}
+          title={bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
+          className="btn-ghost"
+          style={{ color: bookmarked ? 'var(--accent, #7c9fff)' : undefined }}
+        >
+          {bookmarked ? '★' : '☆'}
+        </button>
       </div>
 
-      {err && <div className="auth-err">{err}</div>}
-      {loading && !err && <div className="empty">Opening…</div>}
+      {err && <div className="auth-err" style={{ margin: '1rem' }}>{err}</div>}
+      {loading && !err && <div className="empty" style={{ margin: 'auto' }}>Opening…</div>}
 
       {!loading && !err && (
         <>
-          <div style={{
-            position: 'relative', overflow: 'hidden', borderRadius: 10,
-            background: 'var(--bg-2)', border: '1px solid var(--line)',
-          }}>
-            <canvas
-              ref={canvasRef}
-              style={{
-                width: '100%', display: 'block',
-                transition: 'transform 0.18s ease, opacity 0.18s ease',
-                transform: turning === 'next' ? 'translateX(-6%)' : turning === 'prev' ? 'translateX(6%)' : 'translateX(0)',
-                opacity: turning ? 0.4 : 1,
-              }}
-            />
-            <button
-              onClick={toggleBookmark}
-              title={bookmarked ? 'Remove bookmark' : 'Bookmark this page'}
-              style={{
-                position: 'absolute', top: 10, right: 10, border: 'none', cursor: 'pointer',
-                width: 34, height: 34, borderRadius: '50%',
-                background: bookmarked ? 'var(--grad)' : 'rgba(10,14,26,0.6)',
-                color: '#fff', fontSize: '1rem', backdropFilter: 'blur(6px)',
-              }}
-            >
-              {bookmarked ? '★' : '☆'}
-            </button>
+          {/* Page stage — fills remaining screen, handles all touch gestures */}
+          <div
+            ref={stageRef}
+            onTouchStart={onTouchStart}
+            onTouchMove={onTouchMove}
+            onTouchEnd={onTouchEnd}
+            style={{
+              flex: 1, minHeight: 0, position: 'relative', overflow: 'hidden',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              perspective: 1400, touchAction: 'none',
+            }}
+          >
+            <div style={{
+              transition: 'transform 220ms ease, opacity 220ms ease',
+              ...flipTransform,
+            }}>
+              <canvas
+                ref={canvasRef}
+                style={{
+                  display: 'block', borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  transition: touch.current.mode === 'pan' || touch.current.mode === 'pinch' ? 'none' : 'transform 150ms ease',
+                }}
+              />
+            </div>
+
+            {/* Edge tap zones — fallback for people who don't swipe */}
+            {zoom <= 1.02 && (
+              <>
+                <button
+                  onClick={() => goTo(pageNum - 1, 'prev')}
+                  disabled={pageNum <= 1 || !!turning}
+                  aria-label="Previous page"
+                  style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: '18%', background: 'none', border: 'none', opacity: 0 }}
+                />
+                <button
+                  onClick={() => goTo(pageNum + 1, 'next')}
+                  disabled={pageNum >= numPages || !!turning}
+                  aria-label="Next page"
+                  style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: '18%', background: 'none', border: 'none', opacity: 0 }}
+                />
+              </>
+            )}
           </div>
 
-          <div className="row between" style={{ marginTop: '0.8rem' }}>
+          {/* Bottom bar */}
+          <div className="row between" style={{ padding: '0.7rem 1rem', borderTop: '1px solid var(--line)', flexShrink: 0 }}>
             <button className="btn-ghost" disabled={pageNum <= 1 || !!turning} onClick={() => goTo(pageNum - 1, 'prev')}>← Prev</button>
-            <span className="hud">PAGE {pageNum} / {numPages || '?'}</span>
+            <span className="hud">PAGE {pageNum} / {numPages || '?'}{zoom > 1.02 ? ` · ${zoom.toFixed(1)}×` : ''}</span>
             <button className="btn-ghost" disabled={pageNum >= numPages || !!turning} onClick={() => goTo(pageNum + 1, 'next')}>Next →</button>
           </div>
           {bookmarked && savedNote && (
-            <div className="item-sub" style={{ marginTop: '0.5rem' }}>{savedNote}</div>
+            <div className="item-sub" style={{ padding: '0 1rem 0.6rem', flexShrink: 0 }}>{savedNote}</div>
           )}
         </>
       )}
