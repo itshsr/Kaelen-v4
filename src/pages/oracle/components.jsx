@@ -294,7 +294,7 @@ export function PhotoScan({ hasKey }) {
   if (!hasKey) {
     return (
       <div className="panel placeholder">
-        <span className="hud">PHOTO SCAN \u00b7 DORMANT</span>
+        <span className="hud">PHOTO SCAN · DORMANT</span>
         <span className="big">Needs the AI layer to read a photo.</span>
         <Link to="/user" className="btn-ghost" style={{ textDecoration: 'none' }}>Add key in USER \u203a AI KEY</Link>
       </div>
@@ -321,7 +321,7 @@ export function PhotoScan({ hasKey }) {
       {err && <div className="auth-err">{err}</div>}
       {reading && <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap', marginTop: '0.6rem' }}>{reading}</div>}
       <div className="hud" style={{ marginTop: '0.7rem' }}>
-        CARD IDENTIFICATION IS AI-ASSISTED, NOT PERFECT \u00b7 VERIFY AGAINST YOUR OWN DECK
+        CARD IDENTIFICATION IS AI-ASSISTED, NOT PERFECT · VERIFY AGAINST YOUR OWN DECK
       </div>
     </div>
   )
@@ -365,7 +365,7 @@ export function CelticCross({ hasKey }) {
   return (
     <div className="panel">
       <div className="row between" style={{ marginBottom: '0.8rem' }}>
-        <span className="hud">CELTIC CROSS \u00b7 10 CARDS</span>
+        <span className="hud">CELTIC CROSS · 10 CARDS</span>
         <button className="btn-sm" onClick={draw}>{cards ? 'Draw again' : 'Draw'}</button>
       </div>
       {cards && (
@@ -386,7 +386,7 @@ export function CelticCross({ hasKey }) {
       )}
       {err && <div className="auth-err">{err}</div>}
       {reading && <div style={{ fontSize: '0.88rem', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reading}</div>}
-      <div className="hud" style={{ marginTop: '0.7rem' }}>SYMBOLIC \u00b7 INTERPRETIVE \u00b7 NOT PREDICTION</div>
+      <div className="hud" style={{ marginTop: '0.7rem' }}>SYMBOLIC · INTERPRETIVE · NOT PREDICTION</div>
     </div>
   )
 }

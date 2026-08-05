@@ -5,10 +5,18 @@ import {
   usePersons, DailyTarot, Spread, CelticCross, ManualEntry, PhotoScan, Numerology, AiReadings,
 } from './oracle/components'
 
+const TAROT_MODES = [
+  { id: 'spread', label: 'Three-Card' },
+  { id: 'celtic', label: 'Celtic Cross' },
+  { id: 'manual', label: 'Type a Card' },
+  { id: 'photo', label: 'Scan Photo' },
+]
+
 export default function Oracle() {
   const [uid, setUid] = useState(null)
   const [hasKey, setHasKey] = useState(false)
   const [tab, setTab] = useState('tarot')
+  const [tarotMode, setTarotMode] = useState('spread')
   const persons = usePersons(uid)
 
   useEffect(() => {
@@ -32,10 +40,17 @@ export default function Oracle() {
       {uid && tab === 'tarot' && (
         <div className="grid">
           <DailyTarot uid={uid} />
-          <Spread hasKey={hasKey} />
-          <CelticCross hasKey={hasKey} />
-          <ManualEntry hasKey={hasKey} />
-          <PhotoScan hasKey={hasKey} />
+          <div className="tabs" style={{ marginTop: '0.2rem' }}>
+            {TAROT_MODES.map(m => (
+              <button key={m.id} className={`tab ${tarotMode === m.id ? 'on' : ''}`} onClick={() => setTarotMode(m.id)}>
+                {m.label.toUpperCase()}
+              </button>
+            ))}
+          </div>
+          {tarotMode === 'spread' && <Spread hasKey={hasKey} />}
+          {tarotMode === 'celtic' && <CelticCross hasKey={hasKey} />}
+          {tarotMode === 'manual' && <ManualEntry hasKey={hasKey} />}
+          {tarotMode === 'photo' && <PhotoScan hasKey={hasKey} />}
         </div>
       )}
       {uid && tab === 'numerology' && <Numerology persons={persons} />}
