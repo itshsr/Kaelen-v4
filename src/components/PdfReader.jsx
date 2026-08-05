@@ -62,7 +62,18 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     return () => { cancelled = true }
   }, [book.file_path]) // eslint-disable-line
 
-  // render current page — sized to the container but drawn at devicePixelRatio
+  const [resizeTick, setResizeTick] = useState(0)
+  useEffect(() => {
+    const onResize = () => setResizeTick(t => t + 1)
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
+  // render current page — sized to the actual on-screen stage (not the canvas's
+  // own shrink-wrapped parent, which was the bug: the flip wrapper div has no
+  // fixed width, so it was measuring the canvas's stale/default size instead of
+  // real screen space, producing a tiny page with huge dead space around it.
+  // Fits within BOTH width and height of the stage, and renders at devicePixelRatio
   // for genuinely sharp (not just upscaled) text on high-density phone screens.
   useEffect(() => {
     if (!pdf) return
@@ -70,16 +81,19 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     pdf.getPage(pageNum).then(async page => {
       if (cancelled) return
       const canvas = canvasRef.current
-      if (!canvas) return
+      const stage = stageRef.current
+      if (!canvas || !stage) return
       const dpr = Math.min(window.devicePixelRatio || 1, 3)
-      const containerWidth = canvas.parentElement.clientWidth
+      const pad = 24 // breathing room from stage edges, px
+      const availW = stage.clientWidth - pad * 2
+      const availH = stage.clientHeight - pad * 2
       const baseViewport = page.getViewport({ scale: 1 })
-      const fitScale = containerWidth / baseViewport.width
+      const fitScale = Math.min(availW / baseViewport.width, availH / baseViewport.height)
       const viewport = page.getViewport({ scale: fitScale * dpr })
       const ctx = canvas.getContext('2d')
       canvas.width = viewport.width
       canvas.height = viewport.height
-      canvas.style.width = containerWidth + 'px'
+      canvas.style.width = (viewport.width / dpr) + 'px'
       canvas.style.height = (viewport.height / dpr) + 'px'
       await page.render({ canvasContext: ctx, viewport }).promise
     })
@@ -89,7 +103,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
         setSavedNote(data?.[0]?.note || '')
       })
     return () => { cancelled = true }
-  }, [pdf, pageNum]) // eslint-disable-line
+  }, [pdf, pageNum, resizeTick]) // eslint-disable-line
 
   const goTo = (n, dir) => {
     if (n < 1 || n > numPages || turning || zoom > 1.02) return
@@ -188,7 +202,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       display: 'flex', flexDirection: 'column',
     }}>
       {/* Toolbar */}
-      <div className="row between" style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
+      <div className="row between" style={{ padding: 'calc(0.8rem + env(safe-area-inset-top)) 1rem 0.8rem', borderBottom: '1px solid var(--line)', flexShrink: 0 }}>
         <button className="btn-ghost" onClick={onClose}>✕</button>
         <span className="item-title" style={{ fontWeight: 600, flex: 1, textAlign: 'center', margin: '0 0.6rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {book.title}
@@ -254,7 +268,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
           </div>
 
           {/* Bottom bar */}
-          <div className="row between" style={{ padding: '0.7rem 1rem', borderTop: '1px solid var(--line)', flexShrink: 0 }}>
+          <div className="row between" style={{ padding: '0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom))', borderTop: '1px solid var(--line)', flexShrink: 0 }}>
             <button className="btn-ghost" disabled={pageNum <= 1 || !!turning} onClick={() => goTo(pageNum - 1, 'prev')}>← Prev</button>
             <span className="hud">PAGE {pageNum} / {numPages || '?'}{zoom > 1.02 ? ` · ${zoom.toFixed(1)}×` : ''}</span>
             <button className="btn-ghost" disabled={pageNum >= numPages || !!turning} onClick={() => goTo(pageNum + 1, 'next')}>Next →</button>
