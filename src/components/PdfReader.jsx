@@ -10,12 +10,46 @@ const ZOOM_MIN = 1
 const ZOOM_MAX = 3
 const DOUBLE_TAP_ZOOM = 2.2
 const DOUBLE_TAP_MS = 300
+const TURN_MS = 240
+const TURN_EASE = 'cubic-bezier(0.4, 0.0, 0.2, 1)'
+
+const EFFECTS = [
+  { id: 'curl', label: 'Curl' },
+  { id: 'slide', label: 'Slide' },
+  { id: 'fade', label: 'Fade' },
+  { id: 'instant', label: 'Instant' },
+]
+
+// Style at the moment the OLD page finishes exiting (about to swap content).
+function exitStyle(effect, dir) {
+  if (effect === 'slide') return { transform: `translateX(${dir === 'next' ? '-100%' : '100%'})`, opacity: 1 }
+  if (effect === 'fade') return { transform: 'none', opacity: 0.05 }
+  // curl — old page pivots away around the edge it's turning toward
+  return {
+    transform: `rotateY(${dir === 'next' ? -80 : 80}deg) scale(0.94)`, opacity: 0.15,
+    transformOrigin: dir === 'next' ? '100% 50%' : '0% 50%',
+  }
+}
+// Style applied INSTANTLY (no transition) the moment the NEW page's content is
+// drawn, before animating to settled — this is what the old version was
+// missing, which is why the flip looked like it glitched mid-flight: it kept
+// interpolating continuously through the content swap instead of resetting.
+function enterStartStyle(effect, dir) {
+  if (effect === 'slide') return { transform: `translateX(${dir === 'next' ? '100%' : '-100%'})`, opacity: 1 }
+  if (effect === 'fade') return { transform: 'none', opacity: 0.05 }
+  return {
+    transform: `rotateY(${dir === 'next' ? 80 : -80}deg) scale(0.94)`, opacity: 0.15,
+    transformOrigin: dir === 'next' ? '0% 50%' : '100% 50%',
+  }
+}
+const settledStyle = { transform: 'none', opacity: 1 }
 
 /**
  * Full-screen in-app PDF reader — pages render to a canvas via pdf.js (not a
  * browser download link), retina-sharp via devicePixelRatio-aware scaling.
- * The whole viewport becomes the book: swipe left/right for a 3D page-turn
- * flip, pinch or double-tap to zoom, drag to pan while zoomed.
+ * The whole viewport becomes the book: swipe left/right to turn pages (choice
+ * of curl/slide/fade/instant transitions), pinch or double-tap to zoom, drag
+ * to pan while zoomed.
  */
 export default function PdfReader({ book, uid, onProgress, onClose }) {
   const canvasRef = useRef(null)
@@ -25,7 +59,10 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
   const [numPages, setNumPages] = useState(book.total_pages || 0)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
-  const [turning, setTurning] = useState(null) // { dir: 'next'|'prev', phase: 'out'|'in' } | null
+  const [turning, setTurning] = useState(null) // { dir, phase: 'exit'|'enterJump'|'enter' } | null
+  const [jump, setJump] = useState(false) // true = apply style instantly, no transition
+  const [effect, setEffect] = useState('curl')
+  const [showEffectMenu, setShowEffectMenu] = useState(false)
   const [bookmarked, setBookmarked] = useState(false)
   const [savedNote, setSavedNote] = useState('')
   const [zoom, setZoom] = useState(1)
@@ -122,13 +159,25 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
   const goTo = (n, dir) => {
     if (n < 1 || n > numPages || turning) return
     if (zoom > 1.02) resetZoom() // page buttons should always work — reset any zoom/pan for the new page
-    setTurning({ dir, phase: 'out' })
+
+    if (effect === 'instant') {
+      setPageNum(n)
+      onProgress?.(n)
+      return
+    }
+
+    setTurning({ dir, phase: 'exit' })
     setTimeout(() => {
       setPageNum(n)
       onProgress?.(n)
-      setTurning({ dir, phase: 'in' })
-      setTimeout(() => setTurning(null), 240)
-    }, 220)
+      setJump(true) // apply the entry starting position with no transition...
+      setTurning({ dir, phase: 'enterJump' })
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        setJump(false) // ...then let it animate from there to settled
+        setTurning({ dir, phase: 'enter' })
+        setTimeout(() => setTurning(null), TURN_MS + 20)
+      }))
+    }, TURN_MS)
   }
 
   const toggleBookmark = async () => {
@@ -197,18 +246,12 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
     touch.current = {}
   }
 
-  // Constant per-direction transform origin — the flip pivots around the edge
-  // being turned toward, for the whole out+in motion (not swapped mid-flip).
-  const flipTransform = (() => {
-    if (!turning) return { transform: 'rotateY(0deg) scale(1)', opacity: 1 }
-    const origin = turning.dir === 'next' ? '100% 50%' : '0% 50%'
-    if (turning.phase === 'out') {
-      return {
-        transform: `rotateY(${turning.dir === 'next' ? '-78deg' : '78deg'}) scale(0.92)`,
-        opacity: 0.25, transformOrigin: origin,
-      }
-    }
-    return { transform: 'rotateY(0deg) scale(1)', opacity: 1, transformOrigin: origin }
+  // Resolve the wrapper's current style from the turning state machine.
+  const turnStyle = (() => {
+    if (!turning) return settledStyle
+    if (turning.phase === 'exit') return exitStyle(effect, turning.dir)
+    if (turning.phase === 'enterJump') return enterStartStyle(effect, turning.dir)
+    return settledStyle // phase === 'enter' — animates from the jumped position to settled
   })()
 
   return (
@@ -230,6 +273,27 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
         >
           {bookmarked ? '★' : '☆'}
         </button>
+        <div style={{ position: 'relative' }}>
+          <button className="btn-ghost" onClick={() => setShowEffectMenu(v => !v)} title="Page-turn effect">⇄</button>
+          {showEffectMenu && (
+            <div style={{
+              position: 'absolute', top: '110%', right: 0, zIndex: 5,
+              background: 'var(--bg-2)', border: '1px solid var(--line)', borderRadius: 10,
+              padding: '0.4rem', display: 'flex', flexDirection: 'column', gap: '0.2rem', minWidth: 110,
+            }}>
+              {EFFECTS.map(o => (
+                <button
+                  key={o.id}
+                  className="btn-ghost"
+                  style={{ justifyContent: 'flex-start', color: effect === o.id ? 'var(--accent, #7c9fff)' : undefined }}
+                  onClick={() => { setEffect(o.id); setShowEffectMenu(false) }}
+                >
+                  {effect === o.id ? '✓ ' : ''}{o.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {err && <div className="auth-err" style={{ margin: '1rem' }}>{err}</div>}
@@ -250,8 +314,8 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
             }}
           >
             <div style={{
-              transition: 'transform 220ms ease, opacity 220ms ease',
-              ...flipTransform,
+              transition: jump ? 'none' : `transform ${TURN_MS}ms ${TURN_EASE}, opacity ${TURN_MS}ms ${TURN_EASE}`,
+              ...turnStyle,
             }}>
               <canvas
                 ref={canvasRef}
