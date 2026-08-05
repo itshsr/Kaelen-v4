@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { useHabits } from '../lib/useHabits'
+import { useCalendarData, dayItems, today as todayIso } from '../lib/calendarData'
 import SpotifyCard from '../components/SpotifyCard'
 
 const inr = n => '₹' + Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })
@@ -13,6 +14,7 @@ export default function Home({ profileName }) {
   const [budget, setBudget] = useState({ cap: 0, spent: 0 })
   const [focusToday, setFocusToday] = useState(0)
   const habitsApi = useHabits(uid)
+  const calData = useCalendarData(uid)
 
   useEffect(() => { supabase.auth.getUser().then(({ data }) => setUid(data.user?.id)) }, [])
   useEffect(() => {
@@ -43,6 +45,7 @@ export default function Home({ profileName }) {
   const pct = budget.cap > 0 ? Math.min((budget.spent / budget.cap) * 100, 100) : 0
   const over = budget.cap > 0 && budget.spent > budget.cap
   const { habits, doneToday, streaks, toggle } = habitsApi
+  const todayAgenda = uid ? dayItems(todayIso(), calData) : []
 
   return (
     <>
@@ -55,6 +58,27 @@ export default function Home({ profileName }) {
       </div>
 
       <div className="grid cols2">
+        <div className="panel" style={{ gridColumn: '1 / -1' }}>
+          <div className="row between" style={{ marginBottom: '0.7rem' }}>
+            <span className="hud">TODAY'S AGENDA</span>
+            <Link to="/calendar" className="btn-ghost" style={{ textDecoration: 'none' }}>Open calendar →</Link>
+          </div>
+          {todayAgenda.length === 0 ? (
+            <div className="empty">Nothing scheduled today.</div>
+          ) : (
+            <div className="list">
+              {todayAgenda.map(i => (
+                <div className="item" key={`${i.kind}-${i.id}`}>
+                  <div style={{ flex: 1 }}>
+                    <div className="item-title" style={{ textDecoration: i.done ? 'line-through' : 'none' }}>{i.title}</div>
+                    <div className="item-sub">{i.allDay ? 'All day' : i.time?.slice(0, 5)} · {i.category}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="panel">
           <div className="row between" style={{ marginBottom: '0.7rem' }}>
             <span className="hud">HABITS TODAY</span>
@@ -130,6 +154,7 @@ export default function Home({ profileName }) {
             <Link to="/forge">START FOCUS</Link>
             <Link to="/grimoire">LOG HABIT</Link>
             <Link to="/vault">LOG EXPENSE</Link>
+            <Link to="/calendar">ADD EVENT</Link>
           </div>
         </div>
       </div>

@@ -16,7 +16,7 @@ const monthStart = () => new Date(new Date().getFullYear(), new Date().getMonth(
 const today = () => new Date().toISOString().slice(0, 10)
 
 async function getTasks(uid, { status } = {}) {
-  let q = supabase.from('tasks').select('title, completed, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(50)
+  let q = supabase.from('tasks').select('title, completed, due_date, created_at').eq('user_id', uid).order('created_at', { ascending: false }).limit(50)
   if (status === 'open') q = q.eq('completed', false)
   if (status === 'done') q = q.eq('completed', true)
   const { data, error } = await q

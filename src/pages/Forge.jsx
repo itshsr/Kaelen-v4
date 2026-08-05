@@ -13,6 +13,7 @@ function Tasks({ uid }) {
   const [projects, setProjects] = useState([])
   const [title, setTitle] = useState('')
   const [projectId, setProjectId] = useState('')
+  const [dueDate, setDueDate] = useState('')
   const [q, setQ] = useState('')
   const [showDone, setShowDone] = useState(false)
   const [err, setErr] = useState('')
@@ -30,10 +31,10 @@ function Tasks({ uid }) {
     if (!title.trim()) return
     setErr('')
     const { error } = await supabase.from('tasks').insert({
-      user_id: uid, title: title.trim(), project_id: projectId || null,
+      user_id: uid, title: title.trim(), project_id: projectId || null, due_date: dueDate || null,
     })
     if (error) { setErr(error.message); return }
-    setTitle(''); load()
+    setTitle(''); setDueDate(''); load()
   }
   const toggle = async t => {
     setErr('')
@@ -66,6 +67,7 @@ function Tasks({ uid }) {
           <option value="">No project</option>
           {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <input className="input" type="date" style={{ flex: 1, minWidth: 130 }} value={dueDate} onChange={e => setDueDate(e.target.value)} title="Due date (optional)" />
         <button className="btn-sm" onClick={add}>Add</button>
       </div>
       <input className="input" style={{ marginBottom: '0.8rem' }} placeholder="Search tasks" value={q} onChange={e => setQ(e.target.value)} />
@@ -78,7 +80,11 @@ function Tasks({ uid }) {
             <button className="check" onClick={() => toggle(t)} aria-label="Complete" />
             <div style={{ flex: 1 }}>
               <div className="item-title">{t.title}</div>
-              {t.project_id && <div className="item-sub">{pname(t.project_id)}</div>}
+              {(t.project_id || t.due_date) && (
+                <div className="item-sub">
+                  {t.project_id ? pname(t.project_id) : ''}{t.project_id && t.due_date ? ' · ' : ''}{t.due_date ? `Due ${t.due_date}` : ''}
+                </div>
+              )}
             </div>
             <button className="btn-ghost danger" onClick={() => del(t.id)}>✕</button>
           </div>

@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import GalaxyBackground from './components/GalaxyBackground'
+import { useCalendarData, dayItems, today as todayIso } from './lib/calendarData'
 
 // Route-level code splitting — each page's JS only downloads when actually
 // visited, instead of every page loading on first paint regardless of use.
@@ -14,9 +15,50 @@ const User = lazy(() => import('./pages/User'))
 const SpotifyCallback = lazy(() => import('./pages/SpotifyCallback'))
 const Core = lazy(() => import('./pages/Core'))
 const Oracle = lazy(() => import('./pages/Oracle'))
+const Calendar = lazy(() => import('./pages/Calendar'))
 
 function RouteFallback() {
   return <div className="panel placeholder"><span className="hud">LOADING…</span></div>
+}
+
+function ReminderBanner({ uid }) {
+  const data = useCalendarData(uid)
+  const [dismissed, setDismissed] = useState(() => new Set())
+  const [now, setNow] = useState(() => Date.now())
+
+  // In-app only — no native notification, so this only fires while KAELEN is
+  // open. A 60s poll is cheap (a few small Supabase reads), not the kind of
+  // background AI call the app avoids; nothing here touches Gemini.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (!uid) return null
+  const nowDate = new Date(now)
+  const items = dayItems(todayIso(), data).filter(i => !i.allDay && i.time)
+  const upcoming = items.filter(i => {
+    const [h, m] = i.time.split(':').map(Number)
+    const eventMs = new Date(nowDate).setHours(h, m, 0, 0)
+    const minsAway = (eventMs - now) / 60000
+    return minsAway >= 0 && minsAway <= 30 && !dismissed.has(i.id)
+  })
+  if (upcoming.length === 0) return null
+
+  return (
+    <div style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 490,
+      background: 'linear-gradient(90deg, #2a2f7c, #4a3b8c)', color: '#f4f0ff',
+      padding: '0.6rem 1rem', fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.3rem',
+    }}>
+      {upcoming.map(i => (
+        <div key={i.id} className="row between">
+          <span>⏰ {i.title} — {i.time.slice(0, 5)}</span>
+          <button className="btn-ghost" style={{ padding: '0 0.4rem', color: '#f4f0ff' }} onClick={() => setDismissed(s => new Set([...s, i.id]))}>✕</button>
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function OfflineBanner() {
@@ -47,6 +89,7 @@ const SECTIONS = [
   { path: '/oracle', label: 'ORACLE' },
   { path: '/grimoire', label: 'GRIMOIRE' },
   { path: '/vault', label: 'VAULT' },
+  { path: '/calendar', label: 'CALENDAR' },
   { path: '/user', label: 'USER' },
 ]
 
@@ -107,6 +150,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <OfflineBanner />
+      <ReminderBanner uid={session?.user?.id} />
       <GalaxyBackground theme={theme} />
       <div className="shell">
         <header className="topbar">
@@ -128,6 +172,7 @@ export default function App() {
               <Route path="/oracle" element={<Oracle />} />
               <Route path="/grimoire" element={<Grimoire />} />
               <Route path="/vault" element={<Vault />} />
+              <Route path="/calendar" element={<Calendar />} />
               <Route path="/user" element={<User />} />
               <Route path="/spotify-callback" element={<SpotifyCallback />} />
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -651,6 +651,7 @@ function Subs({ uid, cards }) {
   const [name, setName] = useState('')
   const [amount, setAmount] = useState('')
   const [method, setMethod] = useState('')
+  const [billingDay, setBillingDay] = useState('')
 
   const add = async () => {
     if (!name.trim()) return
@@ -659,8 +660,9 @@ function Subs({ uid, cards }) {
       user_id: uid, name: name.trim(), amount: parseFloat(amount) || 0,
       card_id: isCard ? method : null,
       payment_method: isCard ? null : (method || null),
+      billing_day: billingDay ? Number(billingDay) : null,
     })
-    setName(''); setAmount('')
+    setName(''); setAmount(''); setBillingDay('')
   }
   const setPaid = (s, paid) => update(s.id, { paid_this_month: paid })
   const togglePause = s => update(s.id, { status: s.status === 'active' ? 'paused' : 'active' })
@@ -695,6 +697,7 @@ function Subs({ uid, cards }) {
       <div className="row wrap" style={{ marginBottom: '0.9rem' }}>
         <input className="input" placeholder="Subscription name" style={{ flex: 2, minWidth: 140 }} value={name} onChange={e => setName(e.target.value)} />
         <input className="input" type="number" placeholder="₹/month" style={{ flex: 1, minWidth: 100 }} value={amount} onChange={e => setAmount(e.target.value)} />
+        <input className="input" type="number" min="1" max="31" placeholder="Billing day" style={{ flex: 1, minWidth: 100 }} value={billingDay} onChange={e => setBillingDay(e.target.value)} title="Day of month it bills (optional) — shows on your Calendar" />
         <select className="input" style={{ flex: 1, minWidth: 110 }} value={method} onChange={e => setMethod(e.target.value)}>
           <option value="">No card</option>
           <option value="Cash">Cash</option>
@@ -713,7 +716,7 @@ function Subs({ uid, cards }) {
                 {s.name} · {inr(s.amount)}
               </div>
               <div className="item-sub">
-                {s.status === 'paused' ? 'Paused' : s.paid_this_month ? 'Paid this month' : 'Unpaid'} · {payLabel(s)}
+                {s.status === 'paused' ? 'Paused' : s.paid_this_month ? 'Paid this month' : 'Unpaid'} · {payLabel(s)}{s.billing_day ? ` · Bills on ${s.billing_day}${['th', 'st', 'nd', 'rd'][(s.billing_day % 10 > 3 || [11, 12, 13].includes(s.billing_day % 100)) ? 0 : s.billing_day % 10]}` : ''}
               </div>
             </div>
             {s.status === 'active' && (
