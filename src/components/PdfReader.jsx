@@ -10,20 +10,24 @@ const ZOOM_MIN = 1
 const ZOOM_MAX = 3
 const DOUBLE_TAP_ZOOM = 2.2
 const DOUBLE_TAP_MS = 300
-const TURN_MS = 240
 const TURN_EASE = 'cubic-bezier(0.4, 0.0, 0.2, 1)'
 
 const EFFECTS = [
-  { id: 'curl', label: 'Curl' },
-  { id: 'slide', label: 'Slide' },
-  { id: 'fade', label: 'Fade' },
-  { id: 'instant', label: 'Instant' },
+  { id: 'fade', label: 'Fade', ms: 130 },
+  { id: 'curl', label: 'Curl', ms: 240 },
+  { id: 'slide', label: 'Slide', ms: 240 },
+  { id: 'instant', label: 'Instant', ms: 0 },
 ]
+const effectMs = id => EFFECTS.find(e => e.id === id)?.ms ?? 240
 
 // Style at the moment the OLD page finishes exiting (about to swap content).
 function exitStyle(effect, dir) {
   if (effect === 'slide') return { transform: `translateX(${dir === 'next' ? '-100%' : '100%'})`, opacity: 1 }
-  if (effect === 'fade') return { transform: 'none', opacity: 0.05 }
+  // Fade previously dipped nearly to 0 opacity, which — over the dark reader
+  // background — read as a flash of black between pages, breaking reading
+  // flow. It now only dips to a light dim, quickly, so it barely registers as
+  // more than a soft settle rather than an actual disappearance.
+  if (effect === 'fade') return { transform: 'none', opacity: 0.55 }
   // curl — old page pivots away around the edge it's turning toward
   return {
     transform: `rotateY(${dir === 'next' ? -80 : 80}deg) scale(0.94)`, opacity: 0.15,
@@ -36,7 +40,7 @@ function exitStyle(effect, dir) {
 // interpolating continuously through the content swap instead of resetting.
 function enterStartStyle(effect, dir) {
   if (effect === 'slide') return { transform: `translateX(${dir === 'next' ? '100%' : '-100%'})`, opacity: 1 }
-  if (effect === 'fade') return { transform: 'none', opacity: 0.05 }
+  if (effect === 'fade') return { transform: 'none', opacity: 0.55 }
   return {
     transform: `rotateY(${dir === 'next' ? 80 : -80}deg) scale(0.94)`, opacity: 0.15,
     transformOrigin: dir === 'next' ? '0% 50%' : '100% 50%',
@@ -48,7 +52,7 @@ const settledStyle = { transform: 'none', opacity: 1 }
  * Full-screen in-app PDF reader — pages render to a canvas via pdf.js (not a
  * browser download link), retina-sharp via devicePixelRatio-aware scaling.
  * The whole viewport becomes the book: swipe left/right to turn pages (choice
- * of curl/slide/fade/instant transitions), pinch or double-tap to zoom, drag
+ * of fade/curl/slide/instant transitions), pinch or double-tap to zoom, drag
  * to pan while zoomed.
  */
 export default function PdfReader({ book, uid, onProgress, onClose }) {
@@ -61,7 +65,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
   const [err, setErr] = useState('')
   const [turning, setTurning] = useState(null) // { dir, phase: 'exit'|'enterJump'|'enter' } | null
   const [jump, setJump] = useState(false) // true = apply style instantly, no transition
-  const [effect, setEffect] = useState('curl')
+  const [effect, setEffect] = useState('fade')
   const [showEffectMenu, setShowEffectMenu] = useState(false)
   const [bookmarked, setBookmarked] = useState(false)
   const [savedNote, setSavedNote] = useState('')
@@ -166,6 +170,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       return
     }
 
+    const ms = effectMs(effect)
     setTurning({ dir, phase: 'exit' })
     setTimeout(() => {
       setPageNum(n)
@@ -175,9 +180,9 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
       requestAnimationFrame(() => requestAnimationFrame(() => {
         setJump(false) // ...then let it animate from there to settled
         setTurning({ dir, phase: 'enter' })
-        setTimeout(() => setTurning(null), TURN_MS + 20)
+        setTimeout(() => setTurning(null), ms + 20)
       }))
-    }, TURN_MS)
+    }, ms)
   }
 
   const toggleBookmark = async () => {
@@ -314,7 +319,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
             }}
           >
             <div style={{
-              transition: jump ? 'none' : `transform ${TURN_MS}ms ${TURN_EASE}, opacity ${TURN_MS}ms ${TURN_EASE}`,
+              transition: jump ? 'none' : `transform ${effectMs(effect)}ms ${TURN_EASE}, opacity ${effectMs(effect)}ms ${TURN_EASE}`,
               ...turnStyle,
             }}>
               <canvas
