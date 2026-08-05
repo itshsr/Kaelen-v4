@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSupabaseTable } from '../lib/useSupabaseTable'
+import PinGate from '../components/PinGate'
 import {
   parseCsvFile, guessColumn, parseAmount, parseDate,
   DATE_CANDIDATES, AMOUNT_CANDIDATES, CREDIT_CANDIDATES, DESC_CANDIDATES,
@@ -747,8 +748,10 @@ export default function Vault() {
   }
   useEffect(() => { if (uid) loadCards() }, [uid, reload])
 
+  if (!uid) return null
+
   return (
-    <>
+    <PinGate uid={uid} label="VAULT" code="06 — COIN">
       <div className="section-head">
         <h2 className="display">VAULT</h2>
         <span className="hud">06 — COIN · LIVE</span>
@@ -762,7 +765,7 @@ export default function Vault() {
       {uid && tab === 'expenses' && <Expenses uid={uid} cards={cards} reload={reload} onLogged={() => setReload(r => r + 1)} />}
       {uid && tab === 'cards' && <Cards uid={uid} cards={cards} spentByCard={spentByCard} onChange={() => setReload(r => r + 1)} />}
       {uid && tab === 'subscriptions' && <Subs uid={uid} cards={cards} />}
-    </>
+    </PinGate>
   )
 }
 
