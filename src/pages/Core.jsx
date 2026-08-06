@@ -10,15 +10,58 @@ The current date and time (in the user's local timezone) is: ${now}. Use this if
 
 ${INTEGRITY}`
 
+const dateLabel = iso => {
+  const d = new Date(iso)
+  const dISO = d.toDateString()
+  const today = new Date().toDateString()
+  const yesterday = new Date(Date.now() - 86400000).toDateString()
+  if (dISO === today) return 'Today'
+  if (dISO === yesterday) return 'Yesterday'
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined })
+}
+const relTime = iso => {
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  return dateLabel(iso)
+}
+
 export default function Core({ profileName }) {
   const [uid, setUid] = useState(null)
   const [hasKey, setHasKey] = useState(null)
   const [msgs, setMsgs] = useState([])
+  const [conversationId, setConversationId] = useState(null)
+  const [conversations, setConversations] = useState([])
+  const [showList, setShowList] = useState(false)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const abortRef = useRef(null)
   const bottomRef = useRef(null)
+
+  const loadConversations = async () => {
+    const { data } = await supabase.from('conversations').select('*').order('updated_at', { ascending: false }).limit(50)
+    setConversations(data || [])
+    return data || []
+  }
+
+  const openConversation = async convId => {
+    setConversationId(convId)
+    setShowList(false)
+    if (!convId) { setMsgs([]); return }
+    const { data } = await supabase.from('chat_messages').select('*').eq('conversation_id', convId).order('created_at')
+    setMsgs(data || [])
+  }
+
+  const newChat = () => {
+    // No DB row yet — created lazily on first send, so browsing away from an
+    // empty "new chat" doesn't litter the list with blank conversations.
+    setConversationId(null)
+    setMsgs([])
+    setShowList(false)
+  }
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -26,12 +69,11 @@ export default function Core({ profileName }) {
       setUid(id)
       setHasKey(!!(await getApiKey()))
       if (id) {
-        const { data: m } = await supabase.from('chat_messages')
-          .select('*').order('created_at').limit(200)
-        setMsgs(m || [])
+        const convs = await loadConversations()
+        if (convs.length > 0) await openConversation(convs[0].id)
       }
     })
-  }, [])
+  }, []) // eslint-disable-line
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs, busy])
 
@@ -40,7 +82,25 @@ export default function Core({ profileName }) {
     if (!text || busy) return
     setErr(''); setInput('')
 
-    const userMsg = { role: 'user', content: text, persona: 'KAELEN' }
+    let convId = conversationId
+    if (!convId) {
+      // First message of a fresh chat — create its conversation row now, titled
+      // from this message so it's recognizable in the chat list later.
+      const title = text.length > 48 ? text.slice(0, 48) + '…' : text
+      const { data, error } = await supabase.from('conversations').insert({ user_id: uid, title }).select().single()
+      if (error) { setErr(error.message); return }
+      convId = data.id
+      setConversationId(convId)
+      setConversations(c => [data, ...c])
+    } else {
+      supabase.from('conversations').update({ updated_at: new Date().toISOString() }).eq('id', convId).then(() => {})
+      setConversations(c => {
+        const updated = c.map(x => x.id === convId ? { ...x, updated_at: new Date().toISOString() } : x)
+        return updated.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+      })
+    }
+
+    const userMsg = { role: 'user', content: text, persona: 'KAELEN', conversation_id: convId }
     const nextMsgs = [...msgs, userMsg]
     setMsgs(nextMsgs)
     setBusy(true)
@@ -60,7 +120,8 @@ export default function Core({ profileName }) {
         // Filter out local-only UI entries (pending-action cards have no plain-text
         // `content`) — sending one to Gemini produces an empty/malformed part and a
         // hard 400 error. Once an action is resolved we already persist a proper
-        // text summary, so the model doesn't lose that context.
+        // text summary, so the model doesn't lose that context. Scoped to just this
+        // conversation, not your whole history — keeps context (and token use) tight.
         messages: nextMsgs.filter(m => typeof m.content === 'string').slice(-20).map(({ role, content }) => ({ role, content })),
         tools: uid ? buildKaelenTools(uid) : undefined,
         signal: abortRef.current.signal,
@@ -79,7 +140,7 @@ export default function Core({ profileName }) {
           })),
         }])
       } else {
-        const aiMsg = { role: 'assistant', content: result.text, persona: 'KAELEN' }
+        const aiMsg = { role: 'assistant', content: result.text, persona: 'KAELEN', conversation_id: convId }
         setMsgs(m => [...m, aiMsg])
         await supabase.from('chat_messages').insert({ user_id: uid, ...aiMsg })
       }
@@ -87,7 +148,7 @@ export default function Core({ profileName }) {
       if (e.name === 'AbortError') {
         setInput(text) // return message for revision
         setMsgs(m => m.slice(0, -1))
-        await supabase.from('chat_messages').delete().eq('user_id', uid).eq('content', text).eq('role', 'user')
+        await supabase.from('chat_messages').delete().eq('user_id', uid).eq('content', text).eq('role', 'user').eq('conversation_id', convId)
       } else if (e.message === 'NO_KEY') {
         setErr('No API key saved. Add one in USER › AI KEY.')
       } else {
@@ -128,7 +189,15 @@ export default function Core({ profileName }) {
       : mm))
 
     const summary = `${status === 'done' ? '✅' : status === 'error' ? '⚠️' : '🚫'} ${action.label} — ${note}`
-    await supabase.from('chat_messages').insert({ user_id: uid, role: 'assistant', content: summary, persona: 'KAELEN' })
+    await supabase.from('chat_messages').insert({ user_id: uid, role: 'assistant', content: summary, persona: 'KAELEN', conversation_id: conversationId })
+  }
+
+  const deleteConversation = async (e, convId) => {
+    e.stopPropagation()
+    if (!window.confirm('Delete this conversation? This cannot be undone.')) return
+    await supabase.from('conversations').delete().eq('id', convId)
+    setConversations(c => c.filter(x => x.id !== convId))
+    if (convId === conversationId) newChat()
   }
 
   if (hasKey === false) {
@@ -144,39 +213,78 @@ export default function Core({ profileName }) {
     )
   }
 
+  let lastDate = null
+
   return (
     <>
       <Head />
       <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55dvh' }}>
-        <div className="chat-scroll">
-          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — or ask it to add a task or log an expense, which you'll confirm before anything changes.</div>}
-          {msgs.map((m, i) => (
-            m.role === 'pending-action' ? (
-              <div key={m.localId} className="bubble assistant" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                {m.leadingText && <div>{m.leadingText}</div>}
-                {m.actions.map((a, idx) => (
-                  <div key={idx} style={{
-                    border: '1px solid rgba(124,159,255,0.3)', borderRadius: 10, padding: '0.6rem 0.8rem',
-                    display: 'flex', flexDirection: 'column', gap: '0.5rem',
-                  }}>
-                    <span>{a.label}</span>
-                    {a.status === 'pending' ? (
-                      <div className="row" style={{ gap: '0.5rem' }}>
-                        <button className="btn-sm" onClick={() => resolveAction(m.localId, idx, true)}>Confirm</button>
-                        <button className="btn-ghost" onClick={() => resolveAction(m.localId, idx, false)}>Cancel</button>
-                      </div>
-                    ) : (
-                      <span className="item-sub">
-                        {a.status === 'done' ? '✅' : a.status === 'error' ? '⚠️' : '🚫'} {a.note}
-                      </span>
-                    )}
+        <div className="row between" style={{ marginBottom: '0.6rem' }}>
+          <div style={{ position: 'relative' }}>
+            <button className="btn-ghost" onClick={() => setShowList(v => !v)}>☰ Chats</button>
+            {showList && (
+              <div style={{
+                position: 'absolute', top: '110%', left: 0, zIndex: 20, width: 260, maxHeight: 320, overflowY: 'auto',
+                background: 'var(--panel-solid)', border: '1px solid var(--line)', borderRadius: 12, padding: '0.4rem',
+              }}>
+                {conversations.length === 0 && <div className="empty" style={{ padding: '0.6rem' }}>No conversations yet.</div>}
+                {conversations.map(c => (
+                  <div key={c.id} onClick={() => openConversation(c.id)} className="row between"
+                    style={{
+                      padding: '0.5rem 0.6rem', borderRadius: 8, cursor: 'pointer', gap: '0.4rem',
+                      background: c.id === conversationId ? 'rgba(124,159,255,0.12)' : 'transparent',
+                    }}>
+                    <div style={{ overflow: 'hidden' }}>
+                      <div className="item-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</div>
+                      <div className="item-sub">{relTime(c.updated_at)}</div>
+                    </div>
+                    <button className="btn-ghost danger" style={{ flexShrink: 0 }} onClick={e => deleteConversation(e, c.id)}>✕</button>
                   </div>
                 ))}
               </div>
-            ) : (
-              <div key={m.id || i} className={`bubble ${m.role}`}>{m.content}</div>
+            )}
+          </div>
+          <button className="btn-ghost" onClick={newChat}>+ New chat</button>
+        </div>
+
+        <div className="chat-scroll">
+          {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — or ask it to add a task or log an expense, which you'll confirm before anything changes.</div>}
+          {msgs.map((m, i) => {
+            const showDate = m.created_at && dateLabel(m.created_at) !== lastDate
+            if (m.created_at) lastDate = dateLabel(m.created_at)
+            return (
+              <div key={m.id || m.localId || i}>
+                {showDate && (
+                  <div className="hud" style={{ textAlign: 'center', margin: '0.6rem 0', opacity: 0.6 }}>{dateLabel(m.created_at)}</div>
+                )}
+                {m.role === 'pending-action' ? (
+                  <div className="bubble assistant" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                    {m.leadingText && <div>{m.leadingText}</div>}
+                    {m.actions.map((a, idx) => (
+                      <div key={idx} style={{
+                        border: '1px solid rgba(124,159,255,0.3)', borderRadius: 10, padding: '0.6rem 0.8rem',
+                        display: 'flex', flexDirection: 'column', gap: '0.5rem',
+                      }}>
+                        <span>{a.label}</span>
+                        {a.status === 'pending' ? (
+                          <div className="row" style={{ gap: '0.5rem' }}>
+                            <button className="btn-sm" onClick={() => resolveAction(m.localId, idx, true)}>Confirm</button>
+                            <button className="btn-ghost" onClick={() => resolveAction(m.localId, idx, false)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <span className="item-sub">
+                            {a.status === 'done' ? '✅' : a.status === 'error' ? '⚠️' : '🚫'} {a.note}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className={`bubble ${m.role}`}>{m.content}</div>
+                )}
+              </div>
             )
-          ))}
+          })}
           {busy && <div className="bubble assistant thinking"><span/><span/><span/></div>}
           <div ref={bottomRef} />
         </div>
