@@ -183,6 +183,10 @@ body {
   background: var(--panel); border: 1px solid var(--line); border-radius: 16px;
   padding: 1.3rem; backdrop-filter: blur(12px);
 }
+/* CORE's chat container — deliberately NOT .panel. A bordered/backgrounded
+   card here is what made it look like a floating box sitting on top of the
+   page instead of being the screen itself. This is bare layout only. */
+.chat-shell { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .placeholder {
   display: grid; place-items: center; min-height: 40vh; text-align: center; gap: 0.6rem;
 }
