@@ -1,5 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import Login from './pages/Login'
 import Home from './pages/Home'
@@ -82,6 +82,10 @@ function OfflineBanner() {
   )
 }
 
+function useIsCoreRoute() {
+  return useLocation().pathname === '/core'
+}
+
 const THEMES = [
   { id: 'dark', label: 'Void', swatch: 'linear-gradient(135deg, #1e3a8a, #7a5cff)' },
   { id: 'light', label: 'Daylight', swatch: 'linear-gradient(135deg, #2f55e6, #c07a4a)' },
@@ -162,68 +166,78 @@ export default function App() {
       <OfflineBanner />
       <ReminderBanner uid={session?.user?.id} />
       <GalaxyBackground theme={theme} />
-      <div className="shell">
-        <header className="topbar">
-          <span className="brand-lockup"><img src="/wolf-icon.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
-          <div className="top-actions">
-            <div style={{ position: 'relative' }}>
-              <button className="icon-btn" onClick={() => setShowThemeMenu(v => !v)} aria-label="Change theme">THEME</button>
-              {showThemeMenu && (
-                <div style={{
-                  position: 'absolute', top: '110%', right: 0, zIndex: 50,
-                  background: 'var(--panel-solid)', border: '1px solid var(--line)', borderRadius: 12,
-                  padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 140,
-                }}>
-                  {THEMES.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => pickTheme(t.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        background: 'none', border: 'none', cursor: 'pointer',
-                        padding: '0.4rem 0.5rem', borderRadius: 8, color: 'var(--text)',
-                        font: 'inherit', textAlign: 'left',
-                        outline: theme === t.id ? '1px solid var(--accent)' : 'none',
-                      }}
-                    >
-                      <span style={{ width: 16, height: 16, borderRadius: '50%', background: t.swatch, flexShrink: 0 }} />
-                      {t.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <button className="icon-btn" onClick={() => supabase.auth.signOut()}>EXIT</button>
-          </div>
-        </header>
-
-        <main className="main">
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/" element={<Home profileName={profileName} />} />
-              <Route path="/core" element={<Core profileName={profileName} />} />
-              <Route path="/forge" element={<Forge />} />
-              <Route path="/oracle" element={<Oracle />} />
-              <Route path="/grimoire" element={<Grimoire />} />
-              <Route path="/vault" element={<Vault />} />
-              <Route path="/calendar" element={<Calendar />} />
-              <Route path="/user" element={<User />} />
-              <Route path="/spotify-callback" element={<SpotifyCallback />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </main>
-
-        <nav className="nav">
-          {SECTIONS.map(s => (
-            <NavLink key={s.path} to={s.path} end={s.path === '/'}
-              className={({ isActive }) => (isActive ? 'active' : '')}>
-              <span className="dot" />
-              {s.label}
-            </NavLink>
-          ))}
-        </nav>
-      </div>
+      <Shell
+        theme={theme} showThemeMenu={showThemeMenu} setShowThemeMenu={setShowThemeMenu}
+        pickTheme={pickTheme} profileName={profileName}
+      />
     </BrowserRouter>
+  )
+}
+
+function Shell({ theme, showThemeMenu, setShowThemeMenu, pickTheme, profileName }) {
+  const isCore = useIsCoreRoute() // only CORE locks the shell to viewport height for its own internal scroll
+  return (
+    <div className={`shell${isCore ? ' shell-locked' : ''}`}>
+      <header className="topbar">
+        <span className="brand-lockup"><img src="/wolf-icon.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
+        <div className="top-actions">
+          <div style={{ position: 'relative' }}>
+            <button className="icon-btn" onClick={() => setShowThemeMenu(v => !v)} aria-label="Change theme">THEME</button>
+            {showThemeMenu && (
+              <div style={{
+                position: 'absolute', top: '110%', right: 0, zIndex: 50,
+                background: 'var(--panel-solid)', border: '1px solid var(--line)', borderRadius: 12,
+                padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', minWidth: 140,
+              }}>
+                {THEMES.map(t => (
+                  <button
+                    key={t.id}
+                    onClick={() => pickTheme(t.id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      padding: '0.4rem 0.5rem', borderRadius: 8, color: 'var(--text)',
+                      font: 'inherit', textAlign: 'left',
+                      outline: theme === t.id ? '1px solid var(--accent)' : 'none',
+                    }}
+                  >
+                    <span style={{ width: 16, height: 16, borderRadius: '50%', background: t.swatch, flexShrink: 0 }} />
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="icon-btn" onClick={() => supabase.auth.signOut()}>EXIT</button>
+        </div>
+      </header>
+
+      <main className="main">
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/" element={<Home profileName={profileName} />} />
+            <Route path="/core" element={<Core profileName={profileName} />} />
+            <Route path="/forge" element={<Forge />} />
+            <Route path="/oracle" element={<Oracle />} />
+            <Route path="/grimoire" element={<Grimoire />} />
+            <Route path="/vault" element={<Vault />} />
+            <Route path="/calendar" element={<Calendar />} />
+            <Route path="/user" element={<User />} />
+            <Route path="/spotify-callback" element={<SpotifyCallback />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </main>
+
+      <nav className="nav">
+        {SECTIONS.map(s => (
+          <NavLink key={s.path} to={s.path} end={s.path === '/'}
+            className={({ isActive }) => (isActive ? 'active' : '')}>
+            <span className="dot" />
+            {s.label}
+          </NavLink>
+        ))}
+      </nav>
+    </div>
   )
 }

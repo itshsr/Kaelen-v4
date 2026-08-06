@@ -131,6 +131,11 @@ body {
 
 /* ---------- App shell ---------- */
 .shell { display: flex; flex-direction: column; min-height: 100dvh; }
+/* Only CORE opts into this — locks the shell to exactly one viewport's height
+   (instead of growing with content) so the chat's own internal scroll area is
+   the only thing that scrolls. Every other page keeps normal page scrolling. */
+.shell.shell-locked { height: 100dvh; overflow: hidden; }
+.shell.shell-locked .main { overflow: hidden; min-height: 0; }
 .topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: calc(0.85rem + env(safe-area-inset-top)) 1.2rem 0.85rem;
