@@ -244,7 +244,7 @@ textarea.input { resize: vertical; min-height: 70px; }
 .empty { text-align: center; color: var(--text-dim); font-size: 0.85rem; padding: 1.2rem 0; }
 
 /* ---------- Phase 3: chat ---------- */
-.chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.55rem; max-height: 55vh; padding-right: 2px; }
+.chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.55rem; max-height: 55dvh; padding-right: 2px; }
 .bubble {
   max-width: 82%; padding: 0.65rem 0.9rem; border-radius: 14px; font-size: 0.9rem; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;

@@ -147,7 +147,7 @@ export default function Core({ profileName }) {
   return (
     <>
       <Head />
-      <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55vh' }}>
+      <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55dvh' }}>
         <div className="chat-scroll">
           {msgs.length === 0 && <div className="empty">Talk to KAELEN. Ask about your tasks, budget, or habits — or ask it to add a task or log an expense, which you'll confirm before anything changes.</div>}
           {msgs.map((m, i) => (
