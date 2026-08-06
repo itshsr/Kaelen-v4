@@ -217,7 +217,7 @@ export default function Core({ profileName }) {
 
   return (
     <>
-      <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55dvh' }}>
+      <div className="panel" style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
         <div className="row between" style={{ marginBottom: '0.6rem' }}>
           <span className="hud">CORE · 02 — MIND</span>
           <div className="row" style={{ gap: '0.5rem' }}>
