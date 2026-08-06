@@ -217,34 +217,36 @@ export default function Core({ profileName }) {
 
   return (
     <>
-      <Head />
       <div className="panel" style={{ display: 'flex', flexDirection: 'column', minHeight: '55dvh' }}>
         <div className="row between" style={{ marginBottom: '0.6rem' }}>
-          <div style={{ position: 'relative' }}>
-            <button className="btn-ghost" onClick={() => setShowList(v => !v)}>☰ Chats</button>
-            {showList && (
-              <div style={{
-                position: 'absolute', top: '110%', left: 0, zIndex: 20, width: 260, maxHeight: 320, overflowY: 'auto',
-                background: 'var(--panel-solid)', border: '1px solid var(--line)', borderRadius: 12, padding: '0.4rem',
-              }}>
-                {conversations.length === 0 && <div className="empty" style={{ padding: '0.6rem' }}>No conversations yet.</div>}
-                {conversations.map(c => (
-                  <div key={c.id} onClick={() => openConversation(c.id)} className="row between"
-                    style={{
-                      padding: '0.5rem 0.6rem', borderRadius: 8, cursor: 'pointer', gap: '0.4rem',
-                      background: c.id === conversationId ? 'rgba(124,159,255,0.12)' : 'transparent',
-                    }}>
-                    <div style={{ overflow: 'hidden' }}>
-                      <div className="item-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</div>
-                      <div className="item-sub">{relTime(c.updated_at)}</div>
+          <span className="hud">CORE · 02 — MIND</span>
+          <div className="row" style={{ gap: '0.5rem' }}>
+            <div style={{ position: 'relative' }}>
+              <button className="btn-ghost" onClick={() => setShowList(v => !v)}>☰ Chats</button>
+              {showList && (
+                <div style={{
+                  position: 'absolute', top: '110%', left: 0, zIndex: 20, width: 260, maxHeight: 320, overflowY: 'auto',
+                  background: 'var(--panel-solid)', border: '1px solid var(--line)', borderRadius: 12, padding: '0.4rem',
+                }}>
+                  {conversations.length === 0 && <div className="empty" style={{ padding: '0.6rem' }}>No conversations yet.</div>}
+                  {conversations.map(c => (
+                    <div key={c.id} onClick={() => openConversation(c.id)} className="row between"
+                      style={{
+                        padding: '0.5rem 0.6rem', borderRadius: 8, cursor: 'pointer', gap: '0.4rem',
+                        background: c.id === conversationId ? 'rgba(124,159,255,0.12)' : 'transparent',
+                      }}>
+                      <div style={{ overflow: 'hidden' }}>
+                        <div className="item-title" style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title}</div>
+                        <div className="item-sub">{relTime(c.updated_at)}</div>
+                      </div>
+                      <button className="btn-ghost danger" style={{ flexShrink: 0 }} onClick={e => deleteConversation(e, c.id)}>✕</button>
                     </div>
-                    <button className="btn-ghost danger" style={{ flexShrink: 0 }} onClick={e => deleteConversation(e, c.id)}>✕</button>
-                  </div>
-                ))}
-              </div>
-            )}
+                  ))}
+                </div>
+              )}
+            </div>
+            <button className="btn-ghost" onClick={newChat}>+ New chat</button>
           </div>
-          <button className="btn-ghost" onClick={newChat}>+ New chat</button>
         </div>
 
         <div className="chat-scroll">
