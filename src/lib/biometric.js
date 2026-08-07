@@ -13,12 +13,15 @@ async function getPlugin() {
 
 export async function isBiometricAvailable() {
   const plugin = await getPlugin()
-  if (!plugin) return false
+  if (!plugin) return { available: false, reason: 'Not running on a native device.' }
   try {
     const result = await plugin.checkBiometry()
-    return !!result.isAvailable
-  } catch {
-    return false
+    // isAvailable can be false even with real hardware/enrollment — e.g. some
+    // Android OEMs restrict biometric hardware to system-level unlock only,
+    // never exposing it to third-party apps. `reason`/`code` say why.
+    return { available: !!result.isAvailable, reason: result.reason || null, code: result.code || null, biometryType: result.biometryType }
+  } catch (e) {
+    return { available: false, reason: e.message || 'checkBiometry() threw an error.' }
   }
 }
 

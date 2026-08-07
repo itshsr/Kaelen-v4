@@ -20,13 +20,13 @@ export default function PinGate({ uid, label, code, children }) {
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [err, setErr] = useState('')
-  const [bioAvailable, setBioAvailable] = useState(false)
+  const [bio, setBio] = useState({ available: false, reason: null })
 
   useEffect(() => {
     supabase.from('profiles').select('user_tab_pin').eq('id', uid).single().then(({ data }) => {
       setHasPin(!!data?.user_tab_pin)
     })
-    isBiometricAvailable().then(setBioAvailable)
+    isBiometricAvailable().then(setBio)
   }, [uid])
 
   const create = async () => {
@@ -73,10 +73,15 @@ export default function PinGate({ uid, label, code, children }) {
           </div>
         )}
         {err && <div className="auth-err">{err}</div>}
-        {hasPin && bioAvailable && (
+        {hasPin && bio.available && (
           <button className="btn-sm" style={{ width: '100%', marginBottom: '0.9rem' }} onClick={unlockWithBiometrics}>
             🔒 Unlock with fingerprint / face
           </button>
+        )}
+        {hasPin && !bio.available && bio.reason && (
+          <div className="item-sub" style={{ marginBottom: '0.9rem', opacity: 0.6 }}>
+            Fingerprint unavailable: {bio.reason}
+          </div>
         )}
         <input className="input" type="password" inputMode="numeric" placeholder="PIN" value={pin}
           onChange={e => setPin(e.target.value.replace(/\D/g, '').slice(0, 8))}
