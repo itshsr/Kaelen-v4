@@ -5,7 +5,8 @@ export const DEFAULT_APPEARANCE = {
   cardOpacity: null, // null = each theme's own default; otherwise 0.3–1
   backgroundArt: 'starfield', // 'starfield' | 'calm' | 'off' | 'custom'
   customBackgroundPath: null, // storage path when backgroundArt === 'custom'
-  customCardColor: null, // hex string — only used when theme === 'custom'
+  customCardColor: null, // hex string — only used when theme === 'custom' (fill/background)
+  customBorderColor: null, // hex string — only used when theme === 'custom' (card border)
 }
 
 const SCALE_STEPS = { S: 0.9, M: 1, L: 1.1, XL: 1.2 }
@@ -16,7 +17,6 @@ function hexToRgbString(hex) {
   if (!m) return null
   return `${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)}`
 }
-
 // Applies a saved (or default) appearance object to the live DOM. Called on
 // load and immediately after any change in the Appearance settings panel —
 // no reload needed.
@@ -41,6 +41,13 @@ export function applyAppearance(appearance, theme) {
     if (rgb) root.style.setProperty('--panel-rgb', rgb)
   } else {
     root.style.removeProperty('--panel-rgb')
+  }
+
+  if (theme === 'custom' && a.customBorderColor) {
+    const rgb = hexToRgbString(a.customBorderColor)
+    if (rgb) root.style.setProperty('--line', `rgba(${rgb}, 0.4)`)
+  } else {
+    root.style.removeProperty('--line')
   }
 
   if (a.cardOpacity != null) {
