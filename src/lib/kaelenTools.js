@@ -72,6 +72,27 @@ async function getHabitsStatus(uid) {
   }
 }
 
+async function getCards(uid) {
+  const [{ data: cards, error }, { data: expenses }] = await Promise.all([
+    supabase.from('credit_cards').select('id, label, credit_limit, opening_balance').eq('user_id', uid),
+    supabase.from('expenses').select('card_id, amount').eq('user_id', uid).not('card_id', 'is', null),
+  ])
+  if (error) return { error: error.message }
+  const spentByCard = {}
+  ;(expenses || []).forEach(e => { spentByCard[e.card_id] = (spentByCard[e.card_id] || 0) + Number(e.amount) })
+  return {
+    cards: (cards || []).map(c => {
+      const spent = Number(c.opening_balance || 0) + (spentByCard[c.id] || 0)
+      const limit = Number(c.credit_limit || 0)
+      return {
+        name: c.label, limit: limit || null, spent,
+        available: limit > 0 ? Math.max(limit - spent, 0) : null,
+      }
+    }),
+    currency: 'INR',
+  }
+}
+
 async function markHabitDone(uid, { habit_name }) {
   const { data: matches, error } = await supabase.from('habits')
     .select('id, name').eq('user_id', uid).ilike('name', habit_name?.trim() || '')
@@ -159,6 +180,12 @@ export function buildKaelenTools(uid) {
       description: "Get the user's habits from GRIMOIRE and whether each has been marked done today.",
       parameters: { type: 'OBJECT', properties: {} },
       execute: () => getHabitsStatus(uid),
+    },
+    {
+      name: 'get_cards',
+      description: "Get the user's credit/debit cards from VAULT — name, limit, amount spent, and available balance for each. Amounts are in INR (₹).",
+      parameters: { type: 'OBJECT', properties: {} },
+      execute: () => getCards(uid),
     },
     // --- Phase 2: write tools. `write: true` means these are NEVER auto-executed by
     // geminiChat — calling one only proposes the action; execute() only runs after the
