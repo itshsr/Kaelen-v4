@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { isBiometricAvailable, authenticateWithBiometrics } from '../lib/biometric'
+import { useSecurity } from '../lib/SecurityContext'
 
 async function sha256Hex(text) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
@@ -9,13 +10,13 @@ async function sha256Hex(text) {
 
 // Shared app PIN — one PIN (stored as profiles.user_tab_pin) protects every section
 // wrapped in this gate. Set it once from any protected section; it unlocks the others
-// with the same PIN. Each section still prompts independently per visit (local
-// `unlocked` state, not persisted), so leaving one unlocked section doesn't leave
-// the others open. Fingerprint/face unlock is offered as a same-device alternative
-// to typing the PIN, not a separate credential — see lib/biometric.js.
+// with the same PIN. Unlock state is shared for the whole app session (see
+// SecurityContext) — entering once unlocks every gated section until you close
+// the app, rather than re-prompting on every visit. Fingerprint/face unlock is
+// offered as a same-device alternative to typing the PIN, not a separate credential.
 export default function PinGate({ uid, label, code, children }) {
   const [hasPin, setHasPin] = useState(null) // null = loading
-  const [unlocked, setUnlocked] = useState(false)
+  const { unlocked, setUnlocked } = useSecurity()
   const [pin, setPin] = useState('')
   const [confirmPin, setConfirmPin] = useState('')
   const [err, setErr] = useState('')

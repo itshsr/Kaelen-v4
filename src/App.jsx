@@ -2,6 +2,7 @@ import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { supabase } from './lib/supabase'
 import { AppearanceProvider, useAppearance } from './lib/AppearanceContext'
+import { SecurityProvider } from './lib/SecurityContext'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import GalaxyBackground from './components/GalaxyBackground'
@@ -135,7 +136,9 @@ export default function App() {
 
   return (
     <AppearanceProvider session={session}>
-      <AppInner session={session} profileName={profileName} />
+      <SecurityProvider>
+        <AppInner session={session} profileName={profileName} />
+      </SecurityProvider>
     </AppearanceProvider>
   )
 }

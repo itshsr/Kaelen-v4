@@ -100,8 +100,10 @@ function nextOccurrenceDate(ev) {
 export async function resyncEventNotifications(uid) {
   if (!uid) return
   const { data: events } = await supabase.from('calendar_events').select('*').eq('user_id', uid).not('event_time', 'is', null)
+  const storageKey = `kaelen-notif-ids-${uid}` // scoped per account — shared devices with multiple
+                                                 // KAELEN users must not cancel/overwrite each other's reminders
   let prevIds = []
-  try { prevIds = JSON.parse(localStorage.getItem('kaelen-notif-ids') || '[]') } catch { /* ignore */ }
+  try { prevIds = JSON.parse(localStorage.getItem(storageKey) || '[]') } catch { /* ignore */ }
   await cancelNotifications(prevIds)
 
   const newIds = []
@@ -117,5 +119,5 @@ export async function resyncEventNotifications(uid) {
     })
     newIds.push(id)
   }
-  try { localStorage.setItem('kaelen-notif-ids', JSON.stringify(newIds)) } catch { /* ignore */ }
+  try { localStorage.setItem(storageKey, JSON.stringify(newIds)) } catch { /* ignore */ }
 }
