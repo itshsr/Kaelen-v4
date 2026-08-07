@@ -2,23 +2,29 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { DEFAULT_APPEARANCE, applyAppearance } from './appearance'
 
+const VALID_THEMES = ['dark', 'light', 'neon']
 const Ctx = createContext(null)
 
 export function AppearanceProvider({ session, children }) {
-  const [theme, setThemeState] = useState(() => localStorage.getItem('kaelen-theme') || 'dark')
+  const [theme, setThemeState] = useState(() => {
+    const saved = localStorage.getItem('kaelen-theme')
+    return VALID_THEMES.includes(saved) ? saved : 'dark'
+  })
   const [appearance, setAppearanceState] = useState(DEFAULT_APPEARANCE)
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('kaelen-theme', theme)
-    applyAppearance(appearance, theme)
+    applyAppearance(appearance)
   }, [theme, appearance])
 
   useEffect(() => {
     if (!session) return
     supabase.from('profiles').select('theme, appearance').eq('id', session.user.id).single()
       .then(({ data }) => {
-        if (data?.theme) setThemeState(data.theme)
+        // Ember/Verdant were removed as theme options — fall back to Void for
+        // anyone whose saved preference still points at a retired theme.
+        if (data?.theme) setThemeState(VALID_THEMES.includes(data.theme) ? data.theme : 'dark')
         if (data?.appearance) setAppearanceState({ ...DEFAULT_APPEARANCE, ...data.appearance })
       })
   }, [session])
@@ -34,15 +40,8 @@ export function AppearanceProvider({ session, children }) {
     if (session) await supabase.from('profiles').update({ appearance: next }).eq('id', session.user.id)
   }
 
-  // Merge one theme's bubble override without clobbering other themes' saved overrides.
-  const setBubbleStyle = async (themeId, patch) => {
-    const next = { ...appearance, bubbles: { ...appearance.bubbles, [themeId]: { ...appearance.bubbles?.[themeId], ...patch } } }
-    setAppearanceState(next)
-    if (session) await supabase.from('profiles').update({ appearance: next }).eq('id', session.user.id)
-  }
-
   return (
-    <Ctx.Provider value={{ theme, setTheme, appearance, setAppearance, setBubbleStyle }}>
+    <Ctx.Provider value={{ theme, setTheme, appearance, setAppearance }}>
       {children}
     </Ctx.Provider>
   )

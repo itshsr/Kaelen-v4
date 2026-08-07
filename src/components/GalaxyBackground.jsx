@@ -16,7 +16,17 @@ export default function GalaxyBackground({ theme = 'dark', density = 1 }) {
     // shows through instead. Biggest possible battery/perf win for this setting.
     // Guarded inside the effect (not an early return before it) so hooks are
     // still called in the same order every render regardless of density.
-    if (density <= 0) return;
+    if (density <= 0) {
+      // "Off" — actually clear the canvas instead of just skipping future draws.
+      // Previously this left whatever was last rendered (e.g. from Starfield)
+      // still visible, making "Off" look identical to Starfield instead of flat.
+      const c = canvasRef.current
+      if (c) {
+        const cctx = c.getContext('2d')
+        cctx?.clearRect(0, 0, c.width, c.height)
+      }
+      return;
+    }
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: false });

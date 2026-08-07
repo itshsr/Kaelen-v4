@@ -193,8 +193,29 @@ function ApiKey({ uid }) {
 }
 
 function Appearance() {
-  const { theme, setTheme, appearance, setAppearance, setBubbleStyle } = useAppearance()
-  const currentBubble = appearance.bubbles?.[theme] || {}
+  const { theme, setTheme, appearance, setAppearance } = useAppearance()
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState('')
+
+  const uploadBackground = async e => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadErr(''); setUploading(true)
+    try {
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u.user?.id
+      const ext = file.name.split('.').pop()
+      const path = `${uid}/bg.${ext}`
+      // Overwrite any previous custom background — one per account, not a gallery.
+      const { error } = await supabase.storage.from('backgrounds').upload(path, file, { upsert: true })
+      if (error) throw error
+      await setAppearance({ backgroundArt: 'custom', customBackgroundPath: path })
+    } catch (err) {
+      setUploadErr(err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
 
   return (
     <div className="grid">
@@ -254,47 +275,25 @@ function Appearance() {
             { id: 'starfield', label: 'Starfield (full)' },
             { id: 'calm', label: 'Calm (lighter)' },
             { id: 'off', label: 'Off (flat color)' },
+            { id: 'custom', label: 'Custom image' },
           ].map(o => (
             <button
               key={o.id}
               className="btn-ghost"
               style={{ outline: appearance.backgroundArt === o.id ? '1px solid var(--accent)' : 'none' }}
-              onClick={() => setAppearance({ backgroundArt: o.id })}
+              onClick={() => o.id === 'custom' ? document.getElementById('bg-upload-input')?.click() : setAppearance({ backgroundArt: o.id })}
             >
               {o.label}
             </button>
           ))}
+          <input id="bg-upload-input" type="file" accept="image/*" style={{ display: 'none' }} onChange={uploadBackground} disabled={uploading} />
         </div>
+        {uploading && <span className="item-sub">Uploading…</span>}
+        {uploadErr && <div className="auth-err">{uploadErr}</div>}
+        {appearance.backgroundArt === 'custom' && appearance.customBackgroundPath && (
+          <span className="item-sub">Using your uploaded image. Tap "Custom image" again to replace it.</span>
+        )}
         <span className="item-sub">"Calm" and "Off" use less battery on older phones.</span>
-      </div>
-
-      <div className="panel grid">
-        <span className="hud">CHAT BUBBLES — {THEMES.find(t => t.id === theme)?.label.toUpperCase()} THEME</span>
-        <div className="row wrap" style={{ gap: '0.5rem' }}>
-          {['rounded', 'pill', 'sharp'].map(shape => (
-            <button
-              key={shape}
-              className="btn-ghost"
-              style={{ outline: (currentBubble.shape || 'rounded') === shape ? '1px solid var(--accent)' : 'none' }}
-              onClick={() => setBubbleStyle(theme, { shape })}
-            >
-              {shape[0].toUpperCase() + shape.slice(1)}
-            </button>
-          ))}
-        </div>
-        <div className="row wrap" style={{ gap: '0.5rem' }}>
-          {['compact', 'comfortable', 'roomy'].map(size => (
-            <button
-              key={size}
-              className="btn-ghost"
-              style={{ outline: (currentBubble.size || 'comfortable') === size ? '1px solid var(--accent)' : 'none' }}
-              onClick={() => setBubbleStyle(theme, { size })}
-            >
-              {size[0].toUpperCase() + size.slice(1)}
-            </button>
-          ))}
-        </div>
-        <span className="item-sub">Saved per theme — switching themes can switch bubble style too.</span>
       </div>
     </div>
   )

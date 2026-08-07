@@ -92,11 +92,11 @@ function useIsCoreRoute() {
 const SECTIONS = [
   { path: '/', label: 'HOME' },
   { path: '/core', label: 'CORE' },
+  { path: '/calendar', label: 'CALENDAR' },
   { path: '/forge', label: 'FORGE' },
   { path: '/oracle', label: 'ORACLE' },
   { path: '/grimoire', label: 'GRIMOIRE' },
   { path: '/vault', label: 'VAULT' },
-  { path: '/calendar', label: 'CALENDAR' },
   { path: '/user', label: 'USER' },
 ]
 
@@ -143,7 +143,26 @@ export default function App() {
   )
 }
 
-const BG_DENSITY = { starfield: 1, calm: 0.35, off: 0 }
+const BG_DENSITY = { starfield: 1, calm: 0.28, off: 0, custom: 0 }
+
+function CustomBackground({ path }) {
+  const [url, setUrl] = useState(null)
+  useEffect(() => {
+    let cancelled = false
+    if (!path) { setUrl(null); return }
+    supabase.storage.from('backgrounds').createSignedUrl(path, 3600).then(({ data }) => {
+      if (!cancelled) setUrl(data?.signedUrl || null)
+    })
+    return () => { cancelled = true }
+  }, [path])
+  if (!url) return null
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none',
+      backgroundImage: `url(${url})`, backgroundSize: 'cover', backgroundPosition: 'center',
+    }} />
+  )
+}
 
 function AppInner({ session, profileName }) {
   const { theme, setTheme, appearance } = useAppearance()
@@ -166,7 +185,9 @@ function AppInner({ session, profileName }) {
     <BrowserRouter>
       <OfflineBanner />
       <ReminderBanner uid={session?.user?.id} />
-      <GalaxyBackground theme={theme} density={bgDensity} />
+      {appearance.backgroundArt === 'custom' && appearance.customBackgroundPath
+        ? <CustomBackground path={appearance.customBackgroundPath} />
+        : <GalaxyBackground theme={theme} density={bgDensity} />}
       <Shell
         theme={theme} showThemeMenu={showThemeMenu} setShowThemeMenu={setShowThemeMenu}
         pickTheme={pickTheme} profileName={profileName}
