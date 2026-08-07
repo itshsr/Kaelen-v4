@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
@@ -26,6 +26,42 @@ const relTime = iso => {
   const hrs = Math.round(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
   return dateLabel(iso)
+}
+
+// Lightweight markdown for assistant replies — bold and bullet lists only
+// (the two things Gemini actually uses in practice here). No dependency;
+// avoids raw "**text**" and "* item" showing up literally in bubbles.
+function renderMarkdownLite(text) {
+  const renderInline = (line, key) => {
+    const parts = line.split(/(\*\*[^*]+\*\*)/g).filter(Boolean)
+    return (
+      <span key={key}>
+        {parts.map((p, i) => p.startsWith('**') && p.endsWith('**')
+          ? <strong key={i}>{p.slice(2, -2)}</strong>
+          : <Fragment key={i}>{p}</Fragment>)}
+      </span>
+    )
+  }
+
+  const lines = text.split('\n')
+  const blocks = []
+  let list = []
+  const flushList = () => {
+    if (list.length) { blocks.push(<ul key={`ul-${blocks.length}`} style={{ margin: '0.3rem 0', paddingLeft: '1.2rem' }}>{list}</ul>); list = [] }
+  }
+
+  lines.forEach((line, i) => {
+    const bullet = line.match(/^\s*[*-]\s+(.*)/)
+    if (bullet) {
+      list.push(<li key={i} style={{ marginBottom: '0.2rem' }}>{renderInline(bullet[1], i)}</li>)
+    } else {
+      flushList()
+      if (line.trim() === '') blocks.push(<div key={i} style={{ height: '0.5rem' }} />)
+      else blocks.push(<div key={i}>{renderInline(line, i)}</div>)
+    }
+  })
+  flushList()
+  return blocks
 }
 
 export default function Core({ profileName }) {
@@ -255,7 +291,7 @@ export default function Core({ profileName }) {
             const showDate = m.created_at && dateLabel(m.created_at) !== lastDate
             if (m.created_at) lastDate = dateLabel(m.created_at)
             return (
-              <div key={m.id || m.localId || i} style={{ display: 'contents' }}>
+              <Fragment key={m.id || m.localId || i}>
                 {showDate && (
                   <div className="hud" style={{ textAlign: 'center', margin: '0.6rem 0', opacity: 0.6 }}>{dateLabel(m.created_at)}</div>
                 )}
@@ -282,9 +318,9 @@ export default function Core({ profileName }) {
                     ))}
                   </div>
                 ) : (
-                  <div className={`bubble ${m.role}`}>{m.content}</div>
+                  <div className={`bubble ${m.role}`}>{m.role === 'assistant' ? renderMarkdownLite(m.content) : m.content}</div>
                 )}
-              </div>
+              </Fragment>
             )
           })}
           {busy && <div className="bubble assistant thinking"><span/><span/><span/></div>}
