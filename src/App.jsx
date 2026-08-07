@@ -191,15 +191,16 @@ function AppInner({ session, profileName }) {
       <Shell
         theme={theme} showThemeMenu={showThemeMenu} setShowThemeMenu={setShowThemeMenu}
         pickTheme={pickTheme} profileName={profileName}
+        customBgActive={appearance.backgroundArt === 'custom' && !!appearance.customBackgroundPath}
       />
     </BrowserRouter>
   )
 }
 
-function Shell({ theme, showThemeMenu, setShowThemeMenu, pickTheme, profileName }) {
+function Shell({ theme, showThemeMenu, setShowThemeMenu, pickTheme, profileName, customBgActive }) {
   const isCore = useIsCoreRoute() // only CORE locks the shell to viewport height for its own internal scroll
   return (
-    <div className={`shell${isCore ? ' shell-locked' : ''}`}>
+    <div className={`shell${isCore ? ' shell-locked' : ''}${customBgActive ? ' custom-bg' : ''}`}>
       <header className="topbar">
         <span className="brand-lockup"><img src="/wolf-icon.png" alt="" style={{ height: 30, width: "auto", borderRadius: 6 }} /><span className="brand">KAELEN</span></span>
         <div className="top-actions">

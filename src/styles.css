@@ -358,6 +358,33 @@ a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible
 
 /* Type scale tightening */
 .item-title { letter-spacing: 0.01em; }
+/* CALENDAR is forced white regardless of active theme — overriding these
+   custom properties on a wrapper cascades to every .panel/.item inside it
+   without touching the global theme. */
+.calendar-white {
+  --panel: #ffffff; --panel-rgb: 255, 255, 255; --panel-alpha: 1; --panel-solid: #ffffff;
+  --bg-2: #f2f2f5; --line: rgba(20, 20, 30, 0.12);
+  --text: #14161f; --text-dim: #5a6072;
+}
+.calendar-white .panel, .calendar-white .item { color: var(--text); }
+/* The page title/tabs sit directly on the wallpaper, not on a white card —
+   keep those light regardless of the --text override above. */
+.calendar-white .section-head h2,
+.calendar-white .section-head .hud,
+.calendar-white > .tabs .tab { color: #f2f4fa; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+.calendar-white > .row > .btn-ghost,
+.calendar-white > .row > .item-title { color: #f2f4fa; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+/* Custom wallpaper active — top bar and section titles sit directly on the
+   photo, which can be bright/busy anywhere depending on what was uploaded.
+   A scrim + text-shadow keeps them readable regardless of image content,
+   rather than only working for whatever backgrounds happened to be dark. */
+.shell.custom-bg .topbar { background: rgba(0, 0, 0, 0.45); backdrop-filter: blur(10px); }
+.shell.custom-bg .brand,
+.shell.custom-bg .icon-btn { text-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.shell.custom-bg .section-head h2,
+.shell.custom-bg .section-head .hud { color: #f2f4fa; text-shadow: 0 1px 4px rgba(0,0,0,0.7); }
+.shell.custom-bg .nav { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px); }
+
 .stat .num { letter-spacing: 0.01em; }
 
 /* ---------- Global 3D backdrop (full pass) ---------- */

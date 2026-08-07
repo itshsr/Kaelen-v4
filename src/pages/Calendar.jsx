@@ -243,7 +243,7 @@ export default function Calendar() {
   if (!uid) return null
 
   return (
-    <div className="calendar-page">
+    <div className="calendar-page calendar-white">
       <div className="section-head">
         <h2 className="display">CALENDAR</h2>
         <span className="hud">08 — TIME · LIVE</span>
