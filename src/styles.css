@@ -350,24 +350,24 @@ body { background: var(--bg); }
   backdrop-filter: blur(6px);
 }
 :root[data-theme='dark'] .hero-tile,
-:root[data-theme='neon'] .hero-tile,
-:root[data-theme='neon'] .hero-tile { background-color: rgba(10, 15, 30, 0.55); background-blend-mode: normal; }
-:root[data-theme='light'] .hero-tile { background-color: rgba(255, 255, 255, 0.72); background-blend-mode: normal; }
+:root[data-theme='neon'] .hero-tile { background-color: var(--panel); background-blend-mode: normal; }
+:root[data-theme='light'] .hero-tile { background-color: var(--panel); background-blend-mode: normal; }
 
-/* panels: lighter fill so the galaxy shows through, blur carries legibility */
-.panel { background: var(--panel-solid-mix, var(--panel)); }
+/* panels: lighter fill so the galaxy shows through, blur carries legibility.
+   All three themes now read the SAME --panel variable (composed from
+   --panel-rgb + --panel-alpha, live-overridden by the transparency slider) —
+   they used to hardcode their own frozen rgba() value here, which is why the
+   slider had no visible effect: this rule's higher specificity beat the
+   variable-based one every time, regardless of what the slider set. */
 :root[data-theme='dark'] .panel,
-:root[data-theme='neon'] .panel,
-:root[data-theme='neon'] .panel { background: rgba(10, 15, 30, 0.74); backdrop-filter: blur(18px); }
-:root[data-theme='light'] .panel { background: rgba(255, 255, 255, 0.62); backdrop-filter: blur(20px); }
+:root[data-theme='neon'] .panel { background: var(--panel); backdrop-filter: blur(18px); }
+:root[data-theme='light'] .panel { background: var(--panel); backdrop-filter: blur(20px); }
 :root[data-theme='dark'] .topbar,
-:root[data-theme='neon'] .topbar,
-:root[data-theme='neon'] .topbar { background: rgba(8, 12, 22, 0.42); }
-:root[data-theme='light'] .topbar { background: rgba(255, 255, 255, 0.55); }
+:root[data-theme='neon'] .topbar { background: var(--panel); }
+:root[data-theme='light'] .topbar { background: var(--panel); }
 :root[data-theme='dark'] .nav,
-:root[data-theme='neon'] .nav,
-:root[data-theme='neon'] .nav { background: rgba(8, 12, 22, 0.5); }
-:root[data-theme='light'] .nav { background: rgba(255, 255, 255, 0.6); }
+:root[data-theme='neon'] .nav { background: var(--panel); }
+:root[data-theme='light'] .nav { background: var(--panel); }
 
 /* ---------- Nav: bigger, clearer ---------- */
 .nav a { font-size: 0.68rem; letter-spacing: 0.08em; gap: 4px; padding: 0.4rem 0.4rem; }
