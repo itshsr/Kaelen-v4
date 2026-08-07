@@ -243,7 +243,7 @@ export default function Calendar() {
   if (!uid) return null
 
   return (
-    <>
+    <div className="calendar-page">
       <div className="section-head">
         <h2 className="display">CALENDAR</h2>
         <span className="hud">08 — TIME · LIVE</span>
@@ -270,6 +270,6 @@ export default function Calendar() {
       {view === 'month' && <MonthView monthIso={monthIso} data={data} onSelectDay={d => { setCursor(d); setView('day') }} />}
       {view === 'week' && <WeekView weekStartIso={weekStartIso} data={data} onSelectDay={d => { setCursor(d); setView('day') }} onDeleteEvent={deleteEvent} />}
       {view === 'day' && <DayView dateIso={cursor} data={data} onDeleteEvent={deleteEvent} />}
-    </>
+    </div>
   )
 }

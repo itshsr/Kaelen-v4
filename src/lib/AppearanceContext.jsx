@@ -16,6 +16,7 @@ export function AppearanceProvider({ session, children }) {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('kaelen-theme', theme)
     applyAppearance(appearance, theme)
+    document.body.classList.toggle('has-custom-bg', appearance.backgroundArt === 'custom')
   }, [theme, appearance])
 
   useEffect(() => {
