@@ -128,14 +128,26 @@ body {
 /* ---------- Custom wallpaper readability ---------- */
 /* A user-uploaded background image can be bright/busy in ways the starfield
    never was, and header text was designed assuming a near-solid dark base.
-   When a custom image is active, add a dark scrim behind the header and page
-   titles so text stays legible regardless of what's in the photo. */
+   When a custom image is active, add a dark scrim behind the header, page
+   titles, AND any tab bar or control row that sits directly on the photo
+   rather than inside a panel — those were still unreadable even after the
+   first pass, which only covered .topbar/.section-head. */
 body.has-custom-bg .topbar {
   background: rgba(6, 9, 19, 0.72);
 }
 body.has-custom-bg .section-head {
   background: rgba(6, 9, 19, 0.55); backdrop-filter: blur(6px);
   margin: -0.5rem -0.8rem 1.1rem; padding: 0.9rem 0.8rem 0.7rem; border-radius: 12px;
+}
+body.has-custom-bg .tabs {
+  background: rgba(6, 9, 19, 0.55); backdrop-filter: blur(6px);
+  margin-left: -0.5rem; margin-right: -0.5rem; padding: 0.5rem; border-radius: 12px;
+}
+/* CORE's compact "CORE · MIND / Chats / New chat" row replaced .section-head
+   there (see Core.jsx) and was missed entirely by the .section-head rule. */
+body.has-custom-bg .chat-shell > .row:first-child {
+  background: rgba(6, 9, 19, 0.55); backdrop-filter: blur(6px);
+  margin: -0.4rem -0.4rem 0.6rem; padding: 0.6rem 0.5rem; border-radius: 12px;
 }
 
 /* ---------- Calendar: forced white cards regardless of active theme ----------
