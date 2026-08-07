@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 're
 import { supabase } from './lib/supabase'
 import { AppearanceProvider, useAppearance } from './lib/AppearanceContext'
 import { SecurityProvider } from './lib/SecurityContext'
+import { ConfirmProvider } from './lib/ConfirmContext'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import GalaxyBackground from './components/GalaxyBackground'
@@ -100,21 +101,6 @@ const SECTIONS = [
   { path: '/user', label: 'USER' },
 ]
 
-function Placeholder({ label, tag, note }) {
-  return (
-    <>
-      <div className="section-head">
-        <h2 className="display">{label}</h2>
-        <span className="hud">{tag}</span>
-      </div>
-      <div className="panel placeholder">
-        <span className="hud">{tag} · STANDBY</span>
-        <span className="big">{note}</span>
-      </div>
-    </>
-  )
-}
-
 export default function App() {
   const [session, setSession] = useState(undefined)
   const [profileName, setProfileName] = useState('')
@@ -137,7 +123,9 @@ export default function App() {
   return (
     <AppearanceProvider session={session}>
       <SecurityProvider>
-        <AppInner session={session} profileName={profileName} />
+        <ConfirmProvider>
+          <AppInner session={session} profileName={profileName} />
+        </ConfirmProvider>
       </SecurityProvider>
     </AppearanceProvider>
   )

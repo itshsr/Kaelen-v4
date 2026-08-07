@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useSupabaseTable } from '../lib/useSupabaseTable'
 import PinGate from '../components/PinGate'
+import { useConfirm } from '../lib/ConfirmContext'
 import {
   parseCsvFile, guessColumn, parseAmount, parseDate,
   DATE_CANDIDATES, AMOUNT_CANDIDATES, CREDIT_CANDIDATES, DESC_CANDIDATES,
@@ -257,6 +258,7 @@ function EditExpenseRow({ x, cards, onSave, onCancel }) {
 }
 
 function Expenses({ uid, cards, reload, onLogged }) {
+  const confirm = useConfirm()
   const [expenses, setExpenses] = useState([])
   const [amount, setAmount] = useState('')
   const [cat, setCat] = useState('Food')
@@ -289,7 +291,7 @@ function Expenses({ uid, cards, reload, onLogged }) {
     setAmount(''); setNote(''); setCustomCat(''); load(); onLogged?.()
   }
   const del = async id => {
-    if (!window.confirm('Delete this expense? This cannot be undone.')) return
+    if (!(await confirm('Delete this expense? This cannot be undone.'))) return
     const { error } = await supabase.from('expenses').delete().eq('id', id)
     if (error) { setErr(error.message); return }
     load(); onLogged?.()
@@ -376,6 +378,7 @@ function Budget({ uid, reload }) {
     setCap(Number(b?.monthly_cap || 0))
     setSpent((x || []).reduce((s, e) => s + Number(e.amount), 0))
   }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `load` is recreated every render; adding it would re-run on every render instead of only when uid/reload change.
   useEffect(() => { if (uid) load() }, [uid, reload])
 
   const save = async () => {
@@ -459,6 +462,7 @@ function SimpleImport({ title, uid, table, rowFields, parseLines, extraFields, b
     return { rows, skipped }
   }, [mode, csvRows, colMap]) // eslint-disable-line
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `parseLines` is a stable prop for a given mount of this importer (SimpleImport), not state; including it would just re-run this on every render.
   const pastePreview = useMemo(() => mode === 'paste' ? parseLines(pasteText) : { rows: [], skipped: 0 }, [mode, pasteText])
   const finalRows = mode === 'paste' ? pastePreview.rows : csvPreview.rows
   const skippedCount = mode === 'paste' ? pastePreview.skipped : csvPreview.skipped
@@ -552,6 +556,7 @@ function EditCardBalance({ c, onSave, onCancel }) {
 }
 
 function Cards({ uid, cards, spentByCard, onChange }) {
+  const confirm = useConfirm()
   const [label, setLabel] = useState('')
   const [limit, setLimit] = useState('')
   const [opening, setOpening] = useState('')
@@ -570,7 +575,7 @@ function Cards({ uid, cards, spentByCard, onChange }) {
     setLabel(''); setLimit(''); setOpening(''); onChange()
   }
   const del = async id => {
-    if (!window.confirm('Delete this card? This cannot be undone.')) return
+    if (!(await confirm('Delete this card? This cannot be undone.'))) return
     setErr('')
     const { error } = await supabase.from('credit_cards').delete().eq('id', id)
     if (error) { setErr(error.message); return }
@@ -644,6 +649,7 @@ function Cards({ uid, cards, spentByCard, onChange }) {
 }
 
 function Subs({ uid, cards }) {
+  const confirm = useConfirm()
   const { rows: subs, err, insert, update, remove } = useSupabaseTable('subscriptions', {
     orderBy: { column: 'created_at', ascending: false },
     enabled: !!uid,
@@ -666,8 +672,8 @@ function Subs({ uid, cards }) {
   }
   const setPaid = (s, paid) => update(s.id, { paid_this_month: paid })
   const togglePause = s => update(s.id, { status: s.status === 'active' ? 'paused' : 'active' })
-  const del = id => {
-    if (!window.confirm('Delete this subscription? This cannot be undone.')) return
+  const del = async id => {
+    if (!(await confirm('Delete this subscription? This cannot be undone.'))) return
     remove(id)
   }
   const cardLabel = id => cards.find(c => c.id === id)?.label || 'Card'

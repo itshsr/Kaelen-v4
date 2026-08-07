@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabase'
 import { geminiChat, getApiKey, INTEGRITY } from '../lib/gemini'
 import { buildKaelenTools } from '../lib/kaelenTools'
+import { useConfirm } from '../lib/ConfirmContext'
 
 const KAELEN_SYSTEM = (name, now) => `You are KAELEN — a warm, intelligent, personal AI companion inside the user's personal operating system. The user's name is ${name || 'unknown'}. Be concise, genuine, and personal in tone. You are a conversation partner with READ-ONLY access to the user's app data (tasks, deadlines, expenses, budget, habits, cards) through tools, plus a small set of WRITE tools that let you propose adding a task, adding an expense, marking a habit done, or toggling a task's done state. Calling a write tool only shows the user a confirmation card — it never happens automatically, so don't tell them it's done; tell them you've proposed it. For anything you don't have a tool for, tell the user plainly to use the app's own screens.
 
@@ -65,6 +66,7 @@ function renderMarkdownLite(text) {
 }
 
 export default function Core({ profileName }) {
+  const confirm = useConfirm()
   const [uid, setUid] = useState(null)
   const [hasKey, setHasKey] = useState(null)
   const [msgs, setMsgs] = useState([])
@@ -230,7 +232,7 @@ export default function Core({ profileName }) {
 
   const deleteConversation = async (e, convId) => {
     e.stopPropagation()
-    if (!window.confirm('Delete this conversation? This cannot be undone.')) return
+    if (!(await confirm('Delete this conversation? This cannot be undone.'))) return
     await supabase.from('conversations').delete().eq('id', convId)
     setConversations(c => c.filter(x => x.id !== convId))
     if (convId === conversationId) newChat()

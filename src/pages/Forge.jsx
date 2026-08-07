@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
+import { useConfirm } from '../lib/ConfirmContext'
 
 function useUid() {
   const [uid, setUid] = useState(null)
@@ -9,6 +10,7 @@ function useUid() {
 
 /* ---------- Tasks ---------- */
 function Tasks({ uid }) {
+  const confirm = useConfirm()
   const [tasks, setTasks] = useState([])
   const [projects, setProjects] = useState([])
   const [title, setTitle] = useState('')
@@ -45,7 +47,7 @@ function Tasks({ uid }) {
     load()
   }
   const del = async id => {
-    if (!window.confirm('Delete this task? This cannot be undone.')) return
+    if (!(await confirm('Delete this task? This cannot be undone.'))) return
     setErr('')
     const { error } = await supabase.from('tasks').delete().eq('id', id)
     if (error) { setErr(error.message); return }
@@ -116,6 +118,7 @@ function Tasks({ uid }) {
 /* ---------- Projects ---------- */
 const STATUSES = ['Not Started', 'In Progress', 'On Hold', 'Completed']
 function Projects({ uid }) {
+  const confirm = useConfirm()
   const [projects, setProjects] = useState([])
   const [tasks, setTasks] = useState([])
   const [name, setName] = useState('')
@@ -145,7 +148,7 @@ function Projects({ uid }) {
     load()
   }
   const del = async id => {
-    if (!window.confirm('Delete this project? Linked tasks will keep their project reference removed. This cannot be undone.')) return
+    if (!(await confirm('Delete this project? Linked tasks will keep their project reference removed. This cannot be undone.'))) return
     setErr('')
     const { error } = await supabase.from('projects').delete().eq('id', id)
     if (error) { setErr(error.message); return }

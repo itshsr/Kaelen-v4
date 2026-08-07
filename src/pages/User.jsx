@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import PinGate from '../components/PinGate'
 import { useAppearance } from '../lib/AppearanceContext'
 import { THEMES } from '../lib/themes'
+import { useConfirm } from '../lib/ConfirmContext'
 import { SCALE_STEPS } from '../lib/appearance'
 import ColorPicker from '../components/ColorPicker'
 
@@ -86,6 +87,7 @@ function Profile({ uid }) {
 }
 
 function People({ uid }) {
+  const confirm = useConfirm()
   const [people, setPeople] = useState([])
   const [form, setForm] = useState({ name: '', relationship: '', birth_date: '', birth_time: '', birth_place: '', emoji: '', city: '', notes: '' })
   const [err, setErr] = useState('')
@@ -109,7 +111,7 @@ function People({ uid }) {
     load()
   }
   const del = async id => {
-    if (!window.confirm('Delete this person? This cannot be undone.')) return
+    if (!(await confirm('Delete this person? This cannot be undone.'))) return
     setErr('')
     const { error } = await supabase.from('people_profiles').delete().eq('id', id)
     if (error) { setErr(error.message); return }

@@ -219,7 +219,7 @@ export default function PdfReader({ book, uid, onProgress, onClose }) {
         startPan: pan, lastTap: isDoubleTap ? null : now,
       }
       if (isDoubleTap) {
-        zoom > 1.02 ? resetZoom() : setZoom(DOUBLE_TAP_ZOOM)
+        if (zoom > 1.02) resetZoom(); else setZoom(DOUBLE_TAP_ZOOM)
         touch.current.mode = 'none'
       }
     }

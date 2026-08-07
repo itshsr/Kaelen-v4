@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useCalendarData, dayItems, conflictIds, today, addDays, startOfWeek, minutesOf, isoDate, resyncEventNotifications } from '../lib/calendarData'
 import { ensureNotificationPermission } from '../lib/notifications'
+import { useConfirm } from '../lib/ConfirmContext'
 
 const CATEGORIES = ['Meeting', 'Work', 'Personal', 'Reminder']
 const CAT_COLOR = {
@@ -214,6 +215,7 @@ function DayView({ dateIso, data, onDeleteEvent }) {
 }
 
 export default function Calendar() {
+  const confirm = useConfirm()
   const [uid, setUid] = useState(null)
   const [view, setView] = useState('month')
   const [cursor, setCursor] = useState(today()) // anchor date for whichever view is active
@@ -232,7 +234,7 @@ export default function Calendar() {
   }
 
   const deleteEvent = async item => {
-    if (!window.confirm(`Delete "${item.title}"? This cannot be undone.`)) return
+    if (!(await confirm(`Delete "${item.title}"? This cannot be undone.`))) return
     await supabase.from('calendar_events').delete().eq('id', item.id)
     resyncEventNotifications(uid)
     data.reload()

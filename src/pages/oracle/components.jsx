@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { supabase } from '../../lib/supabase'
 import { DECK, drawCards } from '../../lib/tarot'
 import { lifePath, destiny, soulUrge, personality, NUM_THEMES } from '../../lib/numerology'
-import { geminiChat, getApiKey, INTEGRITY } from '../../lib/gemini'
+import { geminiChat, INTEGRITY } from '../../lib/gemini'
 import { codexFor, CODEX_FRAMEWORK, CODEX } from '../../lib/tarotCodex'
 
 const BASIM_STYLE = `You are the ORACLE voice of this app — measured, symbolic, a little mystical, but honest. Frame every reading as symbolic and interpretive tradition, never as certain prediction. Keep readings under 220 words.

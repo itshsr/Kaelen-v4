@@ -3,14 +3,15 @@ import { supabase } from '../lib/supabase'
 import { useSupabaseTable } from '../lib/useSupabaseTable'
 import { useHabits } from '../lib/useHabits'
 import PdfReader from '../components/PdfReader'
+import { useConfirm } from '../lib/ConfirmContext'
 
-const today = () => new Date().toISOString().slice(0, 10)
 
 function Habits({ uid }) {
+  const confirm = useConfirm()
   const { habits, doneToday, streaks, toggle, add, remove, err } = useHabits(uid)
   const [name, setName] = useState('')
-  const del = id => {
-    if (!window.confirm('Delete this habit? Its streak history will be lost. This cannot be undone.')) return
+  const del = async id => {
+    if (!(await confirm('Delete this habit? Its streak history will be lost. This cannot be undone.'))) return
     remove(id)
   }
   return (
@@ -41,6 +42,7 @@ function Habits({ uid }) {
 }
 
 function Notes({ uid }) {
+  const confirm = useConfirm()
   const { rows: notes, err, insert, update, remove } = useSupabaseTable('notes', {
     orderBy: { column: 'updated_at', ascending: false },
     enabled: !!uid,
@@ -60,7 +62,7 @@ function Notes({ uid }) {
     if (!result.error) setEditing(null)
   }
   const del = async id => {
-    if (!window.confirm('Delete this note? This cannot be undone.')) return
+    if (!(await confirm('Delete this note? This cannot be undone.'))) return
     const result = await remove(id)
     if (!result.error) setEditing(null)
   }
@@ -106,6 +108,7 @@ function Notes({ uid }) {
 }
 
 function Ebooks({ uid }) {
+  const confirm = useConfirm()
   const { rows: books, err, reload, remove, update } = useSupabaseTable('ebooks', {
     orderBy: { column: 'created_at', ascending: false },
     enabled: !!uid,
@@ -135,7 +138,7 @@ function Ebooks({ uid }) {
   }
 
   const del = async book => {
-    if (!window.confirm('Delete this book? This cannot be undone.')) return
+    if (!(await confirm('Delete this book? This cannot be undone.'))) return
     if (book.file_path) {
       const { error: storErr } = await supabase.storage.from('ebooks').remove([book.file_path])
       if (storErr) { setUploadErr(storErr.message); return }
