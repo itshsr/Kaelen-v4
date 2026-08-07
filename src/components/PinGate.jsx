@@ -78,9 +78,9 @@ export default function PinGate({ uid, label, code, children }) {
             🔒 Unlock with fingerprint / face
           </button>
         )}
-        {hasPin && !bio.available && bio.reason && (
+        {hasPin && !bio.available && (
           <div className="item-sub" style={{ marginBottom: '0.9rem', opacity: 0.6 }}>
-            Fingerprint unavailable: {bio.reason}
+            Fingerprint unavailable{bio.reason ? `: ${bio.reason}` : bio.code ? ` (code: ${bio.code})` : ' — the device reported no biometry available, with no further reason given.'}
           </div>
         )}
         <input className="input" type="password" inputMode="numeric" placeholder="PIN" value={pin}
