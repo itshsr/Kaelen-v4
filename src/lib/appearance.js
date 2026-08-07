@@ -9,9 +9,9 @@ export const DEFAULT_APPEARANCE = {
 
 const SHAPE_RADIUS = { rounded: '16px', pill: '999px', sharp: '4px' }
 const SIZE_PAD = {
-  compact: '0.45rem 0.7rem',
-  comfortable: '0.65rem 0.9rem',
-  roomy: '0.85rem 1.2rem',
+  compact: '0.5rem 0.9rem',
+  comfortable: '0.7rem 1.15rem',
+  roomy: '0.9rem 1.4rem',
 }
 const SCALE_STEPS = { S: 0.9, M: 1, L: 1.1, XL: 1.2 }
 

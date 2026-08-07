@@ -15,7 +15,7 @@
   --warm: #e8a06a;
   --glow: rgba(79, 116, 255, 0.35);
   --grad: linear-gradient(120deg, #1e3a8a 0%, #4f74ff 45%, #7a5cff 75%, #b97a5e 100%);
-  --bubble-radius: 16px; --bubble-pad: 0.65rem 1rem;
+  --bubble-radius: 16px; --bubble-pad: 0.7rem 1.25rem;
 }
 :root[data-theme='light'] {
   --bg: #eef1f7;
@@ -32,7 +32,7 @@
   --warm: #c07a4a;
   --glow: rgba(47, 85, 230, 0.18);
   --grad: linear-gradient(120deg, #2f55e6 0%, #6247d6 55%, #c07a4a 100%);
-  --bubble-radius: 16px; --bubble-pad: 0.65rem 1rem;
+  --bubble-radius: 16px; --bubble-pad: 0.7rem 1.25rem;
 }
 :root[data-theme='ember'] {
   --bg: #0f0906;
@@ -49,7 +49,7 @@
   --warm: #e8934a;
   --glow: rgba(232, 147, 74, 0.3);
   --grad: linear-gradient(120deg, #7a3d16 0%, #c96a3a 50%, #e8934a 100%);
-  --bubble-radius: 10px; --bubble-pad: 0.7rem 1.05rem;
+  --bubble-radius: 10px; --bubble-pad: 0.7rem 1.1rem;
 }
 :root[data-theme='neon'] {
   --bg: #050510;
@@ -66,7 +66,7 @@
   --warm: #ff2fd0;
   --glow: rgba(255, 47, 208, 0.4);
   --grad: linear-gradient(120deg, #7a1f8c 0%, #ff2fd0 55%, #2fe8ff 100%);
-  --bubble-radius: 4px; --bubble-pad: 0.6rem 0.9rem;
+  --bubble-radius: 4px; --bubble-pad: 0.6rem 0.95rem;
 }
 :root[data-theme='verdant'] {
   --bg: #0c130d;
@@ -83,7 +83,7 @@
   --warm: #c9a24a;
   --glow: rgba(201, 162, 74, 0.28);
   --grad: linear-gradient(120deg, #2f6b45 0%, #4a8f5c 50%, #c9a24a 100%);
-  --bubble-radius: 22px; --bubble-pad: 0.75rem 1.15rem;
+  --bubble-radius: 18px; --bubble-pad: 0.75rem 1.3rem;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -318,7 +318,7 @@ textarea.input { resize: vertical; min-height: 70px; }
 /* ---------- Phase 3: chat ---------- */
 .chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.55rem; padding-right: 2px; }
 .bubble {
-  max-width: 82%; padding: var(--bubble-pad, 0.65rem 0.9rem); border-radius: var(--bubble-radius, 14px);
+  max-width: 82%; padding: var(--bubble-pad, 0.7rem 1.15rem); border-radius: var(--bubble-radius, 14px);
   font-size: 0.9rem; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;
 }
