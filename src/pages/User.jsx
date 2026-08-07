@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import PinGate from '../components/PinGate'
+import { useAppearance } from '../lib/AppearanceContext'
+import { THEMES } from '../lib/themes'
+import { SCALE_STEPS } from '../lib/appearance'
 
 function UserContent({ uid }) {
   const [tab, setTab] = useState('profile')
@@ -11,13 +14,14 @@ function UserContent({ uid }) {
         <span className="hud">07 — SELF · LIVE</span>
       </div>
       <div className="tabs">
-        {['profile', 'people', 'ai key'].map(t => (
+        {['profile', 'people', 'ai key', 'appearance'].map(t => (
           <button key={t} className={`tab ${tab === t ? 'on' : ''}`} onClick={() => setTab(t)}>{t.toUpperCase()}</button>
         ))}
       </div>
       {uid && tab === 'profile' && <Profile uid={uid} />}
       {uid && tab === 'people' && <People uid={uid} />}
       {uid && tab === 'ai key' && <ApiKey uid={uid} />}
+      {uid && tab === 'appearance' && <Appearance />}
     </>
   )
 }
@@ -184,6 +188,114 @@ function ApiKey({ uid }) {
       </div>
       {err && <div className="auth-err">{err}</div>}
       <span className="hud">AI layer activates in Phase 3. No calls are made until then.</span>
+    </div>
+  )
+}
+
+function Appearance() {
+  const { theme, setTheme, appearance, setAppearance, setBubbleStyle } = useAppearance()
+  const currentBubble = appearance.bubbles?.[theme] || {}
+
+  return (
+    <div className="grid">
+      <div className="panel grid">
+        <span className="hud">THEME</span>
+        <div className="row wrap" style={{ gap: '0.6rem' }}>
+          {THEMES.map(t => (
+            <button
+              key={t.id}
+              onClick={() => setTheme(t.id)}
+              className="btn-ghost"
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem',
+                outline: theme === t.id ? '1px solid var(--accent)' : 'none',
+              }}
+            >
+              <span style={{ width: 16, height: 16, borderRadius: '50%', background: t.swatch, flexShrink: 0 }} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="panel grid">
+        <span className="hud">UI SCALE</span>
+        <div className="row wrap" style={{ gap: '0.5rem' }}>
+          {Object.entries(SCALE_STEPS).map(([label, val]) => (
+            <button
+              key={label}
+              className="btn-ghost"
+              style={{ outline: appearance.uiScale === val ? '1px solid var(--accent)' : 'none' }}
+              onClick={() => setAppearance({ uiScale: val })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        <span className="item-sub">Scales spacing, icons, and text together — applies everywhere, synced across your devices.</span>
+      </div>
+
+      <div className="panel grid">
+        <span className="hud">CARD TRANSPARENCY</span>
+        <input
+          type="range" min="0.3" max="1" step="0.05"
+          value={appearance.cardOpacity ?? 0.72}
+          onChange={e => setAppearance({ cardOpacity: Number(e.target.value) })}
+        />
+        <div className="row between">
+          <button className="btn-ghost" onClick={() => setAppearance({ cardOpacity: null })}>Reset to theme default</button>
+        </div>
+      </div>
+
+      <div className="panel grid">
+        <span className="hud">BACKGROUND ART</span>
+        <div className="row wrap" style={{ gap: '0.5rem' }}>
+          {[
+            { id: 'starfield', label: 'Starfield (full)' },
+            { id: 'calm', label: 'Calm (lighter)' },
+            { id: 'off', label: 'Off (flat color)' },
+          ].map(o => (
+            <button
+              key={o.id}
+              className="btn-ghost"
+              style={{ outline: appearance.backgroundArt === o.id ? '1px solid var(--accent)' : 'none' }}
+              onClick={() => setAppearance({ backgroundArt: o.id })}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        <span className="item-sub">"Calm" and "Off" use less battery on older phones.</span>
+      </div>
+
+      <div className="panel grid">
+        <span className="hud">CHAT BUBBLES — {THEMES.find(t => t.id === theme)?.label.toUpperCase()} THEME</span>
+        <div className="row wrap" style={{ gap: '0.5rem' }}>
+          {['rounded', 'pill', 'sharp'].map(shape => (
+            <button
+              key={shape}
+              className="btn-ghost"
+              style={{ outline: (currentBubble.shape || 'rounded') === shape ? '1px solid var(--accent)' : 'none' }}
+              onClick={() => setBubbleStyle(theme, { shape })}
+            >
+              {shape[0].toUpperCase() + shape.slice(1)}
+            </button>
+          ))}
+        </div>
+        <div className="row wrap" style={{ gap: '0.5rem' }}>
+          {['compact', 'comfortable', 'roomy'].map(size => (
+            <button
+              key={size}
+              className="btn-ghost"
+              style={{ outline: (currentBubble.size || 'comfortable') === size ? '1px solid var(--accent)' : 'none' }}
+              onClick={() => setBubbleStyle(theme, { size })}
+            >
+              {size[0].toUpperCase() + size.slice(1)}
+            </button>
+          ))}
+        </div>
+        <span className="item-sub">Saved per theme — switching themes can switch bubble style too.</span>
+      </div>
     </div>
   )
 }

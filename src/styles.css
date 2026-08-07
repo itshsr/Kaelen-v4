@@ -3,7 +3,9 @@
 :root[data-theme='dark'] {
   --bg: #060913;
   --bg-2: #0a1020;
-  --panel: rgba(16, 24, 44, 0.72);
+  --panel-rgb: 16, 24, 44;
+  --panel-alpha: 0.72;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
   --panel-solid: #0e1526;
   --line: rgba(120, 150, 220, 0.14);
   --text: #e8ecf6;
@@ -13,11 +15,14 @@
   --warm: #e8a06a;
   --glow: rgba(79, 116, 255, 0.35);
   --grad: linear-gradient(120deg, #1e3a8a 0%, #4f74ff 45%, #7a5cff 75%, #b97a5e 100%);
+  --bubble-radius: 16px; --bubble-pad: 0.65rem 1rem;
 }
 :root[data-theme='light'] {
   --bg: #eef1f7;
   --bg-2: #e5e9f2;
-  --panel: rgba(255, 255, 255, 0.78);
+  --panel-rgb: 255, 255, 255;
+  --panel-alpha: 0.78;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
   --panel-solid: #ffffff;
   --line: rgba(30, 45, 90, 0.12);
   --text: #1b2233;
@@ -27,11 +32,14 @@
   --warm: #c07a4a;
   --glow: rgba(47, 85, 230, 0.18);
   --grad: linear-gradient(120deg, #2f55e6 0%, #6247d6 55%, #c07a4a 100%);
+  --bubble-radius: 16px; --bubble-pad: 0.65rem 1rem;
 }
 :root[data-theme='ember'] {
   --bg: #0f0906;
   --bg-2: #150c08;
-  --panel: rgba(40, 22, 12, 0.72);
+  --panel-rgb: 40, 22, 12;
+  --panel-alpha: 0.72;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
   --panel-solid: #1c1109;
   --line: rgba(232, 147, 74, 0.18);
   --text: #f5e6d8;
@@ -41,11 +49,14 @@
   --warm: #e8934a;
   --glow: rgba(232, 147, 74, 0.3);
   --grad: linear-gradient(120deg, #7a3d16 0%, #c96a3a 50%, #e8934a 100%);
+  --bubble-radius: 10px; --bubble-pad: 0.7rem 1.05rem;
 }
 :root[data-theme='neon'] {
   --bg: #050510;
   --bg-2: #08040f;
-  --panel: rgba(12, 10, 28, 0.72);
+  --panel-rgb: 12, 10, 28;
+  --panel-alpha: 0.72;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
   --panel-solid: #0c0a1c;
   --line: rgba(255, 47, 208, 0.22);
   --text: #eaf6ff;
@@ -55,11 +66,14 @@
   --warm: #ff2fd0;
   --glow: rgba(255, 47, 208, 0.4);
   --grad: linear-gradient(120deg, #7a1f8c 0%, #ff2fd0 55%, #2fe8ff 100%);
+  --bubble-radius: 4px; --bubble-pad: 0.6rem 0.9rem;
 }
 :root[data-theme='verdant'] {
   --bg: #0c130d;
   --bg-2: #0f1710;
-  --panel: rgba(24, 34, 24, 0.72);
+  --panel-rgb: 24, 34, 24;
+  --panel-alpha: 0.72;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
   --panel-solid: #131f14;
   --line: rgba(201, 162, 74, 0.18);
   --text: #eae6d5;
@@ -69,6 +83,7 @@
   --warm: #c9a24a;
   --glow: rgba(201, 162, 74, 0.28);
   --grad: linear-gradient(120deg, #2f6b45 0%, #4a8f5c 50%, #c9a24a 100%);
+  --bubble-radius: 22px; --bubble-pad: 0.75rem 1.15rem;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -240,8 +255,11 @@ textarea.input { resize: vertical; min-height: 70px; }
 :root[data-theme='dark'] .item,
 :root[data-theme='ember'] .item,
 :root[data-theme='neon'] .item,
-:root[data-theme='verdant'] .item { background: rgba(20, 28, 50, 0.55); backdrop-filter: blur(10px); }
-:root[data-theme='light'] .item { background: rgba(255, 255, 255, 0.45); backdrop-filter: blur(12px); }
+:root[data-theme='verdant'] .item,
+:root[data-theme='light'] .item {
+  background: rgba(var(--panel-rgb), calc(var(--panel-alpha) * 0.76));
+  backdrop-filter: blur(10px);
+}
 .item.done .item-title { text-decoration: line-through; color: var(--text-dim); }
 .item-title { flex: 1; font-size: 0.92rem; }
 .item-sub { font-size: 0.72rem; color: var(--text-dim); }
@@ -300,11 +318,12 @@ textarea.input { resize: vertical; min-height: 70px; }
 /* ---------- Phase 3: chat ---------- */
 .chat-scroll { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 0.55rem; padding-right: 2px; }
 .bubble {
-  max-width: 82%; padding: 0.65rem 0.9rem; border-radius: 14px; font-size: 0.9rem; line-height: 1.55;
+  max-width: 82%; padding: var(--bubble-pad, 0.65rem 0.9rem); border-radius: var(--bubble-radius, 14px);
+  font-size: 0.9rem; line-height: 1.55;
   white-space: pre-wrap; word-break: break-word;
 }
-.bubble.user { align-self: flex-end; background: var(--grad); color: #fff; border-bottom-right-radius: 4px; }
-.bubble.assistant { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bubble.user { align-self: flex-end; background: var(--grad); color: #fff; border-bottom-right-radius: calc(var(--bubble-radius, 14px) * 0.3); }
+.bubble.assistant { align-self: flex-start; background: var(--bg-2); border: 1px solid var(--line); border-bottom-left-radius: calc(var(--bubble-radius, 14px) * 0.3); }
 .bubble.thinking { display: flex; gap: 5px; padding: 0.85rem 1rem; }
 .bubble.thinking span {
   width: 6px; height: 6px; border-radius: 50%; background: var(--accent);

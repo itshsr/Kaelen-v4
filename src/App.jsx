@@ -1,10 +1,12 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import { supabase } from './lib/supabase'
+import { AppearanceProvider, useAppearance } from './lib/AppearanceContext'
 import Login from './pages/Login'
 import Home from './pages/Home'
 import GalaxyBackground from './components/GalaxyBackground'
 import { useCalendarData, dayItems, today as todayIso, resyncEventNotifications } from './lib/calendarData'
+import { THEMES } from './lib/themes'
 
 // Route-level code splitting — each page's JS only downloads when actually
 // visited, instead of every page loading on first paint regardless of use.
@@ -86,14 +88,6 @@ function useIsCoreRoute() {
   return useLocation().pathname === '/core'
 }
 
-const THEMES = [
-  { id: 'dark', label: 'Void', swatch: 'linear-gradient(135deg, #1e3a8a, #7a5cff)' },
-  { id: 'light', label: 'Daylight', swatch: 'linear-gradient(135deg, #2f55e6, #c07a4a)' },
-  { id: 'ember', label: 'Ember', swatch: 'linear-gradient(135deg, #7a3d16, #e8934a)' },
-  { id: 'neon', label: 'Neon', swatch: 'linear-gradient(135deg, #ff2fd0, #2fe8ff)' },
-  { id: 'verdant', label: 'Verdant', swatch: 'linear-gradient(135deg, #2f6b45, #c9a24a)' },
-]
-
 const SECTIONS = [
   { path: '/', label: 'HOME' },
   { path: '/core', label: 'CORE' },
@@ -123,13 +117,6 @@ function Placeholder({ label, tag, note }) {
 export default function App() {
   const [session, setSession] = useState(undefined)
   const [profileName, setProfileName] = useState('')
-  const [theme, setTheme] = useState(() => localStorage.getItem('kaelen-theme') || 'dark')
-  const [showThemeMenu, setShowThemeMenu] = useState(false)
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme
-    localStorage.setItem('kaelen-theme', theme)
-  }, [theme])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session))
@@ -139,33 +126,44 @@ export default function App() {
 
   useEffect(() => {
     if (!session) return
-    supabase.from('profiles').select('name, theme').eq('id', session.user.id).single()
-      .then(({ data }) => {
-        if (data?.name) setProfileName(data.name)
-        if (data?.theme && data.theme !== theme) setTheme(data.theme)
-      })
+    supabase.from('profiles').select('name').eq('id', session.user.id).single()
+      .then(({ data }) => { if (data?.name) setProfileName(data.name) })
     resyncEventNotifications(session.user.id)
-  }, [session]) // eslint-disable-line
-
-  const pickTheme = async next => {
-    setTheme(next)
-    setShowThemeMenu(false)
-    if (session) await supabase.from('profiles').update({ theme: next }).eq('id', session.user.id)
-  }
+  }, [session])
 
   if (session === undefined) return null
+
+  return (
+    <AppearanceProvider session={session}>
+      <AppInner session={session} profileName={profileName} />
+    </AppearanceProvider>
+  )
+}
+
+const BG_DENSITY = { starfield: 1, calm: 0.35, off: 0 }
+
+function AppInner({ session, profileName }) {
+  const { theme, setTheme, appearance } = useAppearance()
+  const [showThemeMenu, setShowThemeMenu] = useState(false)
+  const bgDensity = BG_DENSITY[appearance.backgroundArt] ?? 1
+
   if (!session) return (
     <>
-      <GalaxyBackground theme={theme} />
+      <GalaxyBackground theme={theme} density={bgDensity} />
       <Login />
     </>
   )
+
+  const pickTheme = async next => {
+    await setTheme(next)
+    setShowThemeMenu(false)
+  }
 
   return (
     <BrowserRouter>
       <OfflineBanner />
       <ReminderBanner uid={session?.user?.id} />
-      <GalaxyBackground theme={theme} />
+      <GalaxyBackground theme={theme} density={bgDensity} />
       <Shell
         theme={theme} showThemeMenu={showThemeMenu} setShowThemeMenu={setShowThemeMenu}
         pickTheme={pickTheme} profileName={profileName}

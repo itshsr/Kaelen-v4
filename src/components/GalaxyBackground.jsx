@@ -6,12 +6,17 @@ import { useEffect, useRef } from "react";
  * background. Mounted once near the root — paints behind everything and is
  * pointer-events: none so it never blocks UI. Self-contained canvas, no assets.
  */
-export default function GalaxyBackground({ theme = 'dark' }) {
+export default function GalaxyBackground({ theme = 'dark', density = 1 }) {
   const canvasRef = useRef(null);
   const themeRef = useRef(theme);
   themeRef.current = theme;
 
   useEffect(() => {
+    // 'off' (density 0) — skip canvas setup entirely; body's flat --bg color
+    // shows through instead. Biggest possible battery/perf win for this setting.
+    // Guarded inside the effect (not an early return before it) so hooks are
+    // still called in the same order every render regardless of density.
+    if (density <= 0) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d", { alpha: false });
@@ -48,8 +53,10 @@ export default function GalaxyBackground({ theme = 'dark' }) {
         depth: rand(0.12, 0.3),
       }));
       const area = width * height;
-      const starCount = Math.min(2200, Math.floor(area / 900));
-      const flareCount = Math.min(10, Math.max(6, Math.floor(area / 260000)));
+      // 'calm' (density < 1) draws meaningfully fewer stars/flares — this is the
+      // main per-frame cost driver, so this is where perf/battery is actually won.
+      const starCount = Math.floor(Math.min(2200, Math.floor(area / 900)) * density);
+      const flareCount = Math.floor(Math.min(10, Math.max(6, Math.floor(area / 260000))) * density);
 
       stars = new Array(starCount).fill(0).map((_, i) => {
         const isFlare = i < flareCount;
@@ -483,7 +490,7 @@ export default function GalaxyBackground({ theme = 'dark' }) {
       window.removeEventListener("deviceorientation", onOrient);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, []);
+  }, [density]);
 
   return (
     <canvas
