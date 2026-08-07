@@ -138,17 +138,23 @@ body.has-custom-bg .section-head {
   margin: -0.5rem -0.8rem 1.1rem; padding: 0.9rem 0.8rem 0.7rem; border-radius: 12px;
 }
 
-/* ---------- Calendar: forced white cards regardless of active theme ---------- */
+/* ---------- Calendar: forced white cards regardless of active theme ----------
+   Deliberate !important here: theme-specific rules like
+   :root[data-theme='dark'] .panel {background:var(--panel)} have HIGHER
+   specificity (pseudo-class + attribute + class) than this 2-class selector,
+   so without !important the theme silently wins every time regardless of
+   what this rule says — confirmed the actual bug behind two earlier attempts
+   at this that looked right in the CSS but never rendered white live. */
 .calendar-page .panel,
 .calendar-page .item {
-  background: #ffffff; color: #1b2233; border-color: rgba(20, 30, 60, 0.12);
+  background: #ffffff !important; color: #1b2233 !important; border-color: rgba(20, 30, 60, 0.12) !important;
 }
 .calendar-page .panel .hud,
-.calendar-page .item-sub { color: #5a6478; }
-.calendar-page .item-title { color: #1b2233; }
-.calendar-page .empty { color: #8892a8; }
+.calendar-page .item-sub { color: #5a6478 !important; }
+.calendar-page .item-title { color: #1b2233 !important; }
+.calendar-page .empty { color: #8892a8 !important; }
 .calendar-page button.btn-ghost {
-  color: #1b2233;
+  color: #1b2233 !important;
 }
 .brand {
   font-family: 'Space Grotesk', sans-serif; font-weight: 700; letter-spacing: 0.3em; font-size: 1rem;
