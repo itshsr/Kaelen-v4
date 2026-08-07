@@ -255,7 +255,7 @@ export default function Core({ profileName }) {
             const showDate = m.created_at && dateLabel(m.created_at) !== lastDate
             if (m.created_at) lastDate = dateLabel(m.created_at)
             return (
-              <div key={m.id || m.localId || i}>
+              <div key={m.id || m.localId || i} style={{ display: 'contents' }}>
                 {showDate && (
                   <div className="hud" style={{ textAlign: 'center', margin: '0.6rem 0', opacity: 0.6 }}>{dateLabel(m.created_at)}</div>
                 )}
