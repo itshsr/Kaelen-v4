@@ -41,6 +41,7 @@ export async function geminiChat({ system, messages, tools, signal }) {
     ? [{ function_declarations: tools.map(({ name, description, parameters }) => ({ name, description, parameters })) }]
     : undefined
 
+  let retriedEmpty = false
   for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${encodeURIComponent(key)}`,
@@ -62,12 +63,23 @@ export async function geminiChat({ system, messages, tools, signal }) {
       throw new Error(detail)
     }
     const data = await res.json()
-    const parts = data?.candidates?.[0]?.content?.parts || []
+    const candidate = data?.candidates?.[0]
+    const parts = candidate?.content?.parts || []
     const calls = parts.filter(p => p.functionCall)
     const leadingText = parts.filter(p => p.text).map(p => p.text).join('')
 
     if (calls.length === 0) {
-      if (!leadingText) throw new Error('Empty response from model.')
+      if (!leadingText) {
+        const blockReason = data?.promptFeedback?.blockReason
+        const finishReason = candidate?.finishReason
+        // A genuinely blocked/flagged prompt won't fix itself on retry — surface why.
+        if (blockReason) throw new Error(`Blocked by Gemini: ${blockReason}. Try rephrasing.`)
+        // Otherwise this is usually a transient empty completion (seen after very
+        // short low-context messages) — one silent retry of the exact same
+        // request before giving up, still within this one user-triggered call.
+        if (!retriedEmpty) { retriedEmpty = true; round--; continue }
+        throw new Error(finishReason ? `Empty response (${finishReason}). Try rephrasing.` : 'Empty response from model.')
+      }
       return { text: leadingText, pendingActions: [] }
     }
 
