@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react'
 import { supabase } from './supabase'
 import { DEFAULT_APPEARANCE, applyAppearance } from './appearance'
 
-const VALID_THEMES = ['dark', 'light', 'neon']
+const VALID_THEMES = ['dark', 'light', 'custom']
 const Ctx = createContext(null)
 
 export function AppearanceProvider({ session, children }) {
@@ -15,7 +15,7 @@ export function AppearanceProvider({ session, children }) {
   useEffect(() => {
     document.documentElement.dataset.theme = theme
     localStorage.setItem('kaelen-theme', theme)
-    applyAppearance(appearance)
+    applyAppearance(appearance, theme)
   }, [theme, appearance])
 
   useEffect(() => {

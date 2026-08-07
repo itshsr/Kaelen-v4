@@ -237,6 +237,17 @@ function Appearance() {
             </button>
           ))}
         </div>
+        {theme === 'custom' && (
+          <div className="row" style={{ gap: '0.7rem', alignItems: 'center', marginTop: '0.3rem' }}>
+            <input
+              type="color"
+              value={appearance.customCardColor || '#10182c'}
+              onChange={e => setAppearance({ customCardColor: e.target.value })}
+              style={{ width: 44, height: 36, border: 'none', borderRadius: 8, background: 'none', padding: 0 }}
+            />
+            <span className="item-sub">Pick a card color — everything else stays the Void look.</span>
+          </div>
+        )}
       </div>
 
       <div className="panel grid">

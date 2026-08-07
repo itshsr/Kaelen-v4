@@ -16,6 +16,25 @@
   --glow: rgba(79, 116, 255, 0.35);
   --grad: linear-gradient(120deg, #1e3a8a 0%, #4f74ff 45%, #7a5cff 75%, #b97a5e 100%);
 }
+/* Same base palette as Void — the point of Custom is the card color picker,
+   which overrides --panel-rgb live via JS (see appearance.js). Falls back to
+   Void's own panel color if no custom color has been picked yet. */
+:root[data-theme='custom'] {
+  --bg: #060913;
+  --bg-2: #0a1020;
+  --panel-rgb: 16, 24, 44;
+  --panel-alpha: 0.72;
+  --panel: rgba(var(--panel-rgb), var(--panel-alpha));
+  --panel-solid: #0e1526;
+  --line: rgba(120, 150, 220, 0.14);
+  --text: #e8ecf6;
+  --text-dim: #8b95ad;
+  --accent: #4f74ff;
+  --accent-2: #7a5cff;
+  --warm: #e8a06a;
+  --glow: rgba(79, 116, 255, 0.35);
+  --grad: linear-gradient(120deg, #1e3a8a 0%, #4f74ff 45%, #7a5cff 75%, #b97a5e 100%);
+}
 :root[data-theme='light'] {
   --bg: #eef1f7;
   --bg-2: #e5e9f2;
@@ -32,7 +51,7 @@
   --glow: rgba(47, 85, 230, 0.18);
   --grad: linear-gradient(120deg, #2f55e6 0%, #6247d6 55%, #c07a4a 100%);
 }
-:root[data-theme='neon'] {
+:root[data-theme='custom'] {
   --bg: #050510;
   --bg-2: #08040f;
   --panel-rgb: 12, 10, 28;
@@ -216,7 +235,7 @@ textarea.input { resize: vertical; min-height: 70px; }
   padding: 0.7rem 0.85rem;
 }
 :root[data-theme='dark'] .item,
-:root[data-theme='neon'] .item,
+:root[data-theme='custom'] .item,
 :root[data-theme='light'] .item {
   background: rgba(var(--panel-rgb), calc(var(--panel-alpha) * 0.76));
   backdrop-filter: blur(10px);
@@ -350,7 +369,7 @@ body { background: var(--bg); }
   backdrop-filter: blur(6px);
 }
 :root[data-theme='dark'] .hero-tile,
-:root[data-theme='neon'] .hero-tile { background-color: var(--panel); background-blend-mode: normal; }
+:root[data-theme='custom'] .hero-tile { background-color: var(--panel); background-blend-mode: normal; }
 :root[data-theme='light'] .hero-tile { background-color: var(--panel); background-blend-mode: normal; }
 
 /* panels: lighter fill so the galaxy shows through, blur carries legibility.
@@ -360,13 +379,13 @@ body { background: var(--bg); }
    slider had no visible effect: this rule's higher specificity beat the
    variable-based one every time, regardless of what the slider set. */
 :root[data-theme='dark'] .panel,
-:root[data-theme='neon'] .panel { background: var(--panel); backdrop-filter: blur(18px); }
+:root[data-theme='custom'] .panel { background: var(--panel); backdrop-filter: blur(18px); }
 :root[data-theme='light'] .panel { background: var(--panel); backdrop-filter: blur(20px); }
 :root[data-theme='dark'] .topbar,
-:root[data-theme='neon'] .topbar { background: var(--panel); }
+:root[data-theme='custom'] .topbar { background: var(--panel); }
 :root[data-theme='light'] .topbar { background: var(--panel); }
 :root[data-theme='dark'] .nav,
-:root[data-theme='neon'] .nav { background: var(--panel); }
+:root[data-theme='custom'] .nav { background: var(--panel); }
 :root[data-theme='light'] .nav { background: var(--panel); }
 
 /* ---------- Nav: bigger, clearer ---------- */
